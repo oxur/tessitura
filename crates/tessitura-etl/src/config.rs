@@ -19,6 +19,29 @@ pub struct Config {
     /// - Config: acoustid_api_key = "..."
     pub acoustid_api_key: Option<String>,
 
+    /// Discogs personal access token for release-level enrichment.
+    ///
+    /// Optional. Authenticated requests benefit from a higher rate limit
+    /// (240 req/min vs 60 req/min unauthenticated).
+    ///
+    /// Can be set via:
+    /// - ENV: TESS_DISCOGS_TOKEN
+    /// - Config: discogs_token = "..."
+    ///
+    /// Generate a token at: <https://www.discogs.com/settings/developers>
+    #[serde(default)]
+    pub discogs_token: Option<String>,
+
+    /// Last.fm API key for folksonomy tag enrichment.
+    ///
+    /// Can be set via:
+    /// - ENV: TESS_LASTFM_API_KEY
+    /// - Config: lastfm_api_key = "..."
+    ///
+    /// Register for a free API key at: <https://www.last.fm/api/account/create>
+    #[serde(default)]
+    pub lastfm_api_key: Option<String>,
+
     /// Path to the SQLite database.
     ///
     /// Can be set via:
@@ -28,6 +51,15 @@ pub struct Config {
     /// - Default: ~/.local/share/tessitura/tessitura.db
     #[serde(default = "default_db_path")]
     pub database_path: PathBuf,
+
+    /// Path to the mapping rules TOML file for harmonization.
+    ///
+    /// Can be set via:
+    /// - ENV: TESS_RULES_PATH
+    /// - Config: rules_path = "/path/to/taxonomy.toml"
+    /// - Default: {config_dir}/tessitura/taxonomy.toml
+    #[serde(default = "default_rules_path")]
+    pub rules_path: PathBuf,
 
     /// Logging configuration.
     ///
@@ -43,7 +75,10 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             acoustid_api_key: None,
+            discogs_token: None,
+            lastfm_api_key: None,
             database_path: default_db_path(),
+            rules_path: default_rules_path(),
             logging: default_logging(),
         }
     }
@@ -106,6 +141,16 @@ fn default_db_path() -> PathBuf {
         .join("tessitura.db")
 }
 
+/// Get the default rules path.
+///
+/// Returns: {config_dir}/tessitura/taxonomy.toml
+fn default_rules_path() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("tessitura")
+        .join("taxonomy.toml")
+}
+
 /// Get the default logging configuration.
 ///
 /// Returns twyg::Opts configured with:
@@ -139,6 +184,7 @@ pub fn config_file_path() -> PathBuf {
 }
 
 /// Get the example config file content.
+#[allow(clippy::too_many_lines)]
 pub fn example_config() -> &'static str {
     r###"# Tessitura Configuration File
 #
@@ -157,6 +203,25 @@ pub fn example_config() -> &'static str {
 # - Environment: TESS_ACOUSTID_API_KEY=your-key-here
 acoustid_api_key = "your-acoustid-api-key-here"
 
+# Discogs personal access token for release-level enrichment
+# Optional; unauthenticated requests are allowed but rate-limited more
+# aggressively (60 req/min vs 240 req/min authenticated)
+#
+# Generate a token at: https://www.discogs.com/settings/developers
+#
+# Can also be set via:
+# - Environment: TESS_DISCOGS_TOKEN=your-token-here
+#discogs_token = "your-discogs-token-here"
+
+# Last.fm API key for folksonomy tag enrichment
+# Required for fetching community-driven genre/mood/style tags
+#
+# Register for a free API key at: https://www.last.fm/api/account/create
+#
+# Can also be set via:
+# - Environment: TESS_LASTFM_API_KEY=your-key-here
+#lastfm_api_key = "your-lastfm-api-key-here"
+
 # Path to the SQLite database
 #
 # Stores all catalog data including Works, Expressions, Manifestations, and Items
@@ -167,6 +232,18 @@ acoustid_api_key = "your-acoustid-api-key-here"
 #
 # Default: Platform-specific data directory
 #database_path = "/path/to/custom/tessitura.db"
+
+# Path to the mapping rules TOML file for harmonization
+#
+# The rules file controls how enrichment data from multiple sources
+# (MusicBrainz, Wikidata, Last.fm, Discogs) is normalized into canonical
+# genre, form, period, and instrumentation values.
+#
+# Can also be set via:
+# - Environment: TESS_RULES_PATH=/path/to/taxonomy.toml
+#
+# Default: {config_dir}/tessitura/taxonomy.toml
+#rules_path = "/path/to/taxonomy.toml"
 
 # Logging configuration
 #
@@ -273,6 +350,9 @@ mod tests {
         let config = Config::default();
         assert!(!config.database_path.as_os_str().is_empty());
         assert!(config.acoustid_api_key.is_none());
+        assert!(config.discogs_token.is_none());
+        assert!(config.lastfm_api_key.is_none());
+        assert!(config.rules_path.ends_with("taxonomy.toml"));
         assert_eq!(config.logging.level(), twyg::LogLevel::Info);
         assert!(config.logging.coloured());
     }

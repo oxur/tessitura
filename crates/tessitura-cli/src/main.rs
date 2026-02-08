@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use tessitura_etl::Config;
 
 mod commands;
+mod tui;
 
 #[derive(Debug, Parser)]
 #[command(name = "tessitura", version, about)]
@@ -69,10 +70,82 @@ Output:
   - Final summary of identified vs unidentified items"
     )]
     Identify,
+    /// Enrich identified items from external metadata sources
+    #[command(
+        long_about = "Fetches metadata for identified items from multiple external sources:
+
+  - MusicBrainz: recording, work, and release details (no API key needed)
+  - Wikidata: key, form, instrumentation, period (no API key needed)
+  - Last.fm: folksonomy tags (requires TESS_LASTFM_API_KEY)
+  - Discogs: label, format, personnel (optional TESS_DISCOGS_TOKEN)
+
+Each source runs as an independent subtask. If one source fails, the
+others can still succeed and the failed source can be retried independently.
+
+Items must be identified first via 'tessitura identify'.
+
+Rate limits are respected per source. All findings are stored as
+provenance-tracked assertions in the database."
+    )]
+    Enrich {
+        /// Only enrich items that haven't been enriched yet
+        #[arg(long, default_value_t = false)]
+        pending_only: bool,
+    },
+    /// Apply mapping rules and resolve conflicts
+    #[command(
+        long_about = "Applies the mapping rules engine to enrichment assertions, normalizing
+raw metadata into canonical genre, form, period, and instrumentation values.
+
+The harmonization process:
+  1. Loads all assertions for each enriched item
+  2. Applies genre rules (pattern matching with source filtering)
+  3. Applies period rules (composer name + composition year)
+  4. Applies instrument rules (string matching to standard terms)
+  5. Resolves conflicts using source priority ordering
+  6. Produces proposed tags for human review
+
+Mapping rules are loaded from the taxonomy.toml file (see config).
+
+After harmonization, use 'tessitura review' to approve proposed tags."
+    )]
+    Harmonize,
+    /// Review proposed metadata in a terminal UI
+    #[command(
+        long_about = "Opens an interactive terminal UI for reviewing proposed metadata
+after harmonization. Albums are grouped by name, and each track shows
+its proposed tags with source and confidence information.
+
+The review TUI supports:
+  - Album list view: browse all albums awaiting review
+  - Track detail view: inspect proposed tags for each track
+  - Keyboard navigation: j/k or arrow keys, Enter to select, b to go back
+
+This step is intended for human verification before tags are written
+back to audio files. Items must be harmonized first via 'tessitura harmonize'."
+    )]
+    Review,
     /// Show pipeline status
     Status {
         /// Optional filter (album name, artist, etc.)
         filter: Option<String>,
+    },
+    /// Manage controlled vocabularies (LCGFT/LCMPT)
+    #[command(
+        long_about = "Load and manage Library of Congress controlled vocabularies used
+for genre/form classification (LCGFT) and instrumentation (LCMPT).
+
+These vocabularies provide standardized terms for the mapping rules engine
+used during harmonization. They are loaded from JSON snapshot files.
+
+Examples:
+  tessitura vocab load                           # Load from default locations
+  tessitura vocab load --lcgft /path/to/lcgft.json  # Load specific LCGFT file
+  tessitura vocab stats                          # Show vocabulary statistics"
+    )]
+    Vocab {
+        #[command(subcommand)]
+        action: VocabAction,
     },
     /// Manage configuration
     #[command(long_about = "View and modify tessitura configuration settings.
@@ -99,6 +172,21 @@ Dotted notation: Use dots to access nested config values (e.g., logging.level)")
         #[command(subcommand)]
         action: Option<ConfigAction>,
     },
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum VocabAction {
+    /// Load vocabulary snapshots into the database
+    Load {
+        /// Path to LCGFT snapshot file
+        #[arg(long)]
+        lcgft: Option<PathBuf>,
+        /// Path to LCMPT snapshot file
+        #[arg(long)]
+        lcmpt: Option<PathBuf>,
+    },
+    /// Show vocabulary statistics
+    Stats,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -155,9 +243,27 @@ async fn main() -> Result<()> {
         Commands::Identify => {
             commands::run_identify(config.database_path, config.acoustid_api_key).await?;
         }
+        Commands::Enrich { pending_only } => {
+            let db_path = config.database_path.clone();
+            commands::enrich::run_enrich(&config, db_path, pending_only).await?;
+        }
+        Commands::Harmonize => {
+            commands::harmonize::run_harmonize(config.database_path, config.rules_path)?;
+        }
+        Commands::Review => {
+            commands::review::run_review(config.database_path)?;
+        }
         Commands::Status { filter } => {
             commands::show_status(config.database_path, filter)?;
         }
+        Commands::Vocab { action } => match action {
+            VocabAction::Load { lcgft, lcmpt } => {
+                commands::vocab::load_vocab(config.database_path, lcgft, lcmpt)?;
+            }
+            VocabAction::Stats => {
+                commands::vocab::vocab_stats(config.database_path)?;
+            }
+        },
         Commands::Config { action } => {
             match action {
                 None => {

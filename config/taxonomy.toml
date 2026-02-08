@@ -1,0 +1,391 @@
+# Tessitura Taxonomy Mapping Rules
+#
+# This configuration defines how raw metadata assertions from various sources
+# are normalized into canonical controlled vocabulary terms. Rules are
+# evaluated in order; the first matching rule wins for each assertion.
+#
+# Source priorities determine which source's assertion takes precedence when
+# multiple sources produce the same canonical value.
+
+# ---------------------------------------------------------------------------
+# Source Priorities (higher number = higher authority)
+# ---------------------------------------------------------------------------
+
+[source_priority]
+embedded_tag = 1
+acoustid = 1
+lastfm = 2
+discogs = 3
+musicbrainz = 5
+wikidata = 6
+lcgft = 8
+lcmpt = 8
+user = 10
+
+# ---------------------------------------------------------------------------
+# Genre Rules
+# ---------------------------------------------------------------------------
+
+# Classical Music (broad)
+[[genre_rules]]
+name = "classical-general"
+description = "Broad classical music detection from common tags"
+match_any = ["classical"]
+output_genre = "Classical"
+output_lcgft_label = "Art music"
+confidence = 0.7
+
+# Baroque
+[[genre_rules]]
+name = "classical-baroque"
+description = "Baroque period classical music"
+match_any = ["baroque"]
+output_genre = "Classical > Baroque"
+output_lcgft_label = "Baroque music"
+confidence = 0.85
+
+# Classical Period (Viennese classicism)
+[[genre_rules]]
+name = "classical-period"
+description = "Classical period (Viennese classicism, c. 1750-1820)"
+match_any = ["viennese classical", "classical period", "classicism"]
+output_genre = "Classical > Classical Period"
+confidence = 0.85
+
+# Romantic
+[[genre_rules]]
+name = "classical-romantic"
+description = "Romantic era classical music"
+match_any = ["romantic", "romanticism"]
+output_genre = "Classical > Romantic"
+output_lcgft_label = "Romantic music"
+confidence = 0.85
+
+# 20th Century Classical
+[[genre_rules]]
+name = "classical-20th-century"
+description = "20th century classical and modern classical"
+match_any = ["20th century classical", "modern classical", "contemporary classical", "post-romantic"]
+output_genre = "Classical > 20th Century"
+confidence = 0.85
+
+# Contemporary / 21st Century
+[[genre_rules]]
+name = "classical-contemporary"
+description = "Contemporary art music and 21st century classical"
+match_any = ["contemporary art music", "21st century classical", "new music", "avant-garde classical"]
+output_genre = "Classical > Contemporary"
+confidence = 0.8
+
+# String Quartet Form
+[[genre_rules]]
+name = "form-string-quartet"
+description = "String quartet as a musical form"
+match_any = ["string quartet"]
+output_form = "String quartet"
+output_lcgft_label = "String quartets"
+confidence = 0.9
+
+# Symphony Form
+[[genre_rules]]
+name = "form-symphony"
+description = "Symphony as a musical form"
+match_any = ["symphony", "symphonic"]
+output_form = "Symphony"
+output_lcgft_label = "Symphonies"
+confidence = 0.85
+
+# Sonata Form
+[[genre_rules]]
+name = "form-sonata"
+description = "Sonata as a musical form"
+match_any = ["sonata"]
+output_form = "Sonata"
+output_lcgft_label = "Sonatas"
+confidence = 0.85
+
+# Concerto Form
+[[genre_rules]]
+name = "form-concerto"
+description = "Concerto as a musical form"
+match_any = ["concerto", "concerti"]
+output_form = "Concerto"
+output_lcgft_label = "Concertos"
+confidence = 0.85
+
+# Opera
+[[genre_rules]]
+name = "classical-opera"
+description = "Opera as a genre and form"
+match_any = ["opera"]
+output_genre = "Classical > Opera"
+output_form = "Opera"
+output_lcgft_label = "Operas"
+confidence = 0.85
+
+# Chamber Music
+[[genre_rules]]
+name = "classical-chamber"
+description = "Chamber music as a genre"
+match_any = ["chamber music", "chamber"]
+output_genre = "Classical > Chamber Music"
+output_lcgft_label = "Chamber music"
+confidence = 0.8
+
+# Jazz (broad)
+[[genre_rules]]
+name = "jazz-general"
+description = "Broad jazz detection"
+match_any = ["jazz"]
+output_genre = "Jazz"
+output_lcgft_label = "Jazz"
+confidence = 0.75
+
+# Bebop
+[[genre_rules]]
+name = "jazz-bebop"
+description = "Bebop jazz"
+match_any = ["bebop", "bop"]
+output_genre = "Jazz > Bebop"
+confidence = 0.85
+
+# Cool Jazz
+[[genre_rules]]
+name = "jazz-cool"
+description = "Cool jazz and West Coast jazz"
+match_any = ["cool jazz", "west coast jazz"]
+output_genre = "Jazz > Cool Jazz"
+confidence = 0.85
+
+# Free Jazz
+[[genre_rules]]
+name = "jazz-free"
+description = "Free jazz and avant-garde jazz"
+match_any = ["free jazz", "avant-garde jazz"]
+output_genre = "Jazz > Free Jazz"
+confidence = 0.85
+
+# Electronic (broad)
+[[genre_rules]]
+name = "electronic-general"
+description = "Broad electronic music detection"
+match_any = ["electronic", "electronica"]
+output_genre = "Electronic"
+output_lcgft_label = "Electronic music"
+confidence = 0.7
+
+# Ambient
+[[genre_rules]]
+name = "electronic-ambient"
+description = "Ambient electronic music"
+match_any = ["ambient"]
+output_genre = "Electronic > Ambient"
+confidence = 0.8
+
+# Techno
+[[genre_rules]]
+name = "electronic-techno"
+description = "Techno"
+match_any = ["techno"]
+output_genre = "Electronic > Techno"
+confidence = 0.8
+
+# IDM
+[[genre_rules]]
+name = "electronic-idm"
+description = "Intelligent dance music"
+match_any = ["idm", "intelligent dance"]
+output_genre = "Electronic > IDM"
+confidence = 0.8
+
+# Progressive Rock
+[[genre_rules]]
+name = "prog-rock-general"
+description = "Progressive rock"
+match_any = ["progressive rock", "prog rock", "prog"]
+output_genre = "Rock > Progressive Rock"
+confidence = 0.8
+
+# Art Rock
+[[genre_rules]]
+name = "prog-rock-art"
+description = "Art rock as a subgenre of progressive rock"
+match_any = ["art rock"]
+output_genre = "Rock > Art Rock"
+confidence = 0.8
+
+# Krautrock
+[[genre_rules]]
+name = "prog-rock-krautrock"
+description = "Krautrock / German experimental rock"
+match_any = ["krautrock"]
+output_genre = "Rock > Krautrock"
+confidence = 0.85
+
+# ---------------------------------------------------------------------------
+# Period Rules
+# ---------------------------------------------------------------------------
+
+# Baroque Composers
+[[period_rules]]
+name = "baroque-composers"
+description = "Well-known Baroque era composers (c. 1600-1750)"
+match_composer = ["bach", "vivaldi", "handel", "telemann", "purcell", "corelli", "scarlatti", "rameau", "lully", "monteverdi", "couperin"]
+output_period = "Baroque"
+year_range = [1600, 1750]
+
+# Classical Period Composers
+[[period_rules]]
+name = "classical-period-composers"
+description = "Classical period composers (c. 1750-1820)"
+match_composer = ["mozart", "haydn", "clementi", "salieri", "boccherini", "hummel"]
+output_period = "Classical"
+year_range = [1750, 1820]
+
+# Early Romantic Composers
+[[period_rules]]
+name = "early-romantic-composers"
+description = "Early Romantic period composers (c. 1800-1850)"
+match_composer = ["beethoven", "schubert", "weber", "mendelssohn", "berlioz", "schumann"]
+output_period = "Early Romantic"
+year_range = [1800, 1850]
+
+# Late Romantic Composers
+[[period_rules]]
+name = "late-romantic-composers"
+description = "Late Romantic period composers (c. 1850-1910)"
+match_composer = ["chopin", "liszt", "wagner", "brahms", "bruckner", "tchaikovsky", "dvorak", "grieg", "verdi", "puccini", "mahler", "strauss"]
+output_period = "Late Romantic"
+year_range = [1850, 1910]
+
+# Impressionist Composers
+[[period_rules]]
+name = "impressionist-composers"
+description = "Impressionist composers (c. 1880-1920)"
+match_composer = ["debussy", "ravel", "satie", "faure"]
+output_period = "Impressionist"
+year_range = [1880, 1920]
+
+# Early 20th Century / Modernist Composers
+[[period_rules]]
+name = "early-20th-century-composers"
+description = "Early 20th century modernist composers (c. 1900-1945)"
+match_composer = ["stravinsky", "bartok", "schoenberg", "berg", "webern", "prokofiev", "shostakovich", "hindemith", "ives", "varese"]
+output_period = "Early 20th Century"
+year_range = [1900, 1945]
+
+# Mid 20th Century Composers
+[[period_rules]]
+name = "mid-20th-century-composers"
+description = "Mid 20th century composers (c. 1945-1975)"
+match_composer = ["cage", "boulez", "stockhausen", "ligeti", "messiaen", "xenakis", "berio", "penderecki", "lutoslawski", "britten"]
+output_period = "Mid 20th Century"
+year_range = [1945, 1975]
+
+# Late 20th Century / Postmodern Composers
+[[period_rules]]
+name = "late-20th-century-composers"
+description = "Late 20th century and postmodern composers (c. 1970-2000)"
+match_composer = ["glass", "reich", "riley", "adams", "part", "gorecki", "tavener", "nyman", "saariaho"]
+output_period = "Late 20th Century"
+year_range = [1970, 2000]
+
+# Contemporary Composers (21st Century)
+[[period_rules]]
+name = "contemporary-composers"
+description = "21st century / living composers"
+match_composer = ["adès", "ades", "muhly", "mason bates", "shaw", "higdon", "lindberg"]
+output_period = "Contemporary"
+year_range = [2000, 2100]
+
+# Renaissance
+[[period_rules]]
+name = "renaissance-composers"
+description = "Renaissance period composers (c. 1400-1600)"
+match_composer = ["palestrina", "josquin", "byrd", "tallis", "dowland", "victoria", "lassus", "gesualdo"]
+output_period = "Renaissance"
+year_range = [1400, 1600]
+
+# ---------------------------------------------------------------------------
+# Instrument Rules
+# ---------------------------------------------------------------------------
+
+# String Quartet
+[[instrument_rules]]
+name = "string-quartet"
+description = "Standard string quartet: 2 violins, viola, cello"
+match_any = ["string quartet"]
+output_instruments = ["Violin 1", "Violin 2", "Viola", "Cello"]
+output_lcmpt_labels = ["violin", "violin", "viola", "violoncello"]
+
+# Piano Trio
+[[instrument_rules]]
+name = "piano-trio"
+description = "Standard piano trio: piano, violin, cello"
+match_any = ["piano trio"]
+output_instruments = ["Piano", "Violin", "Cello"]
+output_lcmpt_labels = ["piano", "violin", "violoncello"]
+
+# Piano Quartet
+[[instrument_rules]]
+name = "piano-quartet"
+description = "Standard piano quartet: piano, violin, viola, cello"
+match_any = ["piano quartet"]
+output_instruments = ["Piano", "Violin", "Viola", "Cello"]
+output_lcmpt_labels = ["piano", "violin", "viola", "violoncello"]
+
+# Piano Quintet
+[[instrument_rules]]
+name = "piano-quintet"
+description = "Standard piano quintet: piano + string quartet"
+match_any = ["piano quintet"]
+output_instruments = ["Piano", "Violin 1", "Violin 2", "Viola", "Cello"]
+output_lcmpt_labels = ["piano", "violin", "violin", "viola", "violoncello"]
+
+# Orchestra
+[[instrument_rules]]
+name = "orchestra"
+description = "Full symphony orchestra"
+match_any = ["orchestra", "orchestral", "symphonic"]
+output_instruments = ["Orchestra"]
+output_lcmpt_labels = ["orchestra"]
+
+# Wind Quintet
+[[instrument_rules]]
+name = "wind-quintet"
+description = "Standard wind quintet: flute, oboe, clarinet, bassoon, horn"
+match_any = ["wind quintet", "woodwind quintet"]
+output_instruments = ["Flute", "Oboe", "Clarinet", "Bassoon", "Horn"]
+output_lcmpt_labels = ["flute", "oboe", "clarinet", "bassoon", "horn"]
+
+# Brass Quintet
+[[instrument_rules]]
+name = "brass-quintet"
+description = "Standard brass quintet: 2 trumpets, horn, trombone, tuba"
+match_any = ["brass quintet"]
+output_instruments = ["Trumpet 1", "Trumpet 2", "Horn", "Trombone", "Tuba"]
+output_lcmpt_labels = ["trumpet", "trumpet", "horn", "trombone", "tuba"]
+
+# Solo Piano
+[[instrument_rules]]
+name = "solo-piano"
+description = "Solo piano performance"
+match_any = ["solo piano", "piano solo", "for piano"]
+output_instruments = ["Piano"]
+output_lcmpt_labels = ["piano"]
+
+# Organ
+[[instrument_rules]]
+name = "organ"
+description = "Solo organ or organ performance"
+match_any = ["organ"]
+output_instruments = ["Organ"]
+output_lcmpt_labels = ["organ"]
+
+# String Orchestra
+[[instrument_rules]]
+name = "string-orchestra"
+description = "String orchestra (strings only)"
+match_any = ["string orchestra", "strings"]
+output_instruments = ["String Orchestra"]
+output_lcmpt_labels = ["string orchestra"]

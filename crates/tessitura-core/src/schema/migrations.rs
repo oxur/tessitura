@@ -146,8 +146,41 @@ CREATE INDEX IF NOT EXISTS idx_assertions_entity_id ON assertions(entity_id);
 CREATE INDEX IF NOT EXISTS idx_assertions_entity_field ON assertions(entity_id, field);
 ";
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "initial_schema",
-    sql: MIGRATION_001,
-}];
+const MIGRATION_002: &str = r"
+-- LCGFT terms (Library of Congress Genre/Form Terms)
+CREATE TABLE IF NOT EXISTS lcgft_terms (
+    uri TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    broader_uri TEXT REFERENCES lcgft_terms(uri),
+    scope_note TEXT,
+    loaded_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_lcgft_label ON lcgft_terms(label);
+CREATE INDEX IF NOT EXISTS idx_lcgft_broader ON lcgft_terms(broader_uri);
+
+-- LCMPT terms (Library of Congress Medium of Performance Terms)
+CREATE TABLE IF NOT EXISTS lcmpt_terms (
+    uri TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    broader_uri TEXT REFERENCES lcmpt_terms(uri),
+    scope_note TEXT,
+    loaded_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_lcmpt_label ON lcmpt_terms(label);
+CREATE INDEX IF NOT EXISTS idx_lcmpt_broader ON lcmpt_terms(broader_uri);
+";
+
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial_schema",
+        sql: MIGRATION_001,
+    },
+    Migration {
+        version: 2,
+        name: "vocabulary_tables",
+        sql: MIGRATION_002,
+    },
+];

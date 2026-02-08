@@ -23,6 +23,7 @@ backon = { workspace = true }
 walkdir = { workspace = true }
 dirs = { workspace = true }
 confyg = { workspace = true }
+uuid = { workspace = true }
 async-trait = "0.1"
 
 [dev-dependencies]
