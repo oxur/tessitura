@@ -45,6 +45,7 @@ and provenance tracking. Use 'tessitura status' to view scanned items.")]
         path: PathBuf,
     },
     /// Identify recordings via AcoustID/MusicBrainz
+    #[command(alias = "id")]
     #[command(long_about = "Processes all unidentified items in the database by matching them against
 MusicBrainz recordings. For each unidentified item:
 
