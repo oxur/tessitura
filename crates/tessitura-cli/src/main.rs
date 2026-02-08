@@ -18,6 +18,28 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     /// Scan a music directory for audio files
+    ///
+    /// Recursively walks the specified directory to discover audio files and extract
+    /// their metadata. For each audio file found:
+    ///
+    /// - Extracts embedded tags (title, artist, album, track number, year, genre)
+    /// - Records file metadata (path, size, format, modification time)
+    /// - Creates Item records in the database
+    /// - Tracks files in the pipeline for downstream identification
+    ///
+    /// Supported formats: FLAC, MP3, OGG, WAV, M4A/AAC
+    ///
+    /// The scan is incremental: previously scanned files are skipped unless their
+    /// modification time has changed. Changed files are re-scanned and updated.
+    /// Files removed from disk are detected and marked accordingly.
+    ///
+    /// Output:
+    /// - Real-time progress indicators for each stage
+    /// - Summary showing files discovered, added, updated, and removed
+    /// - No errors for properly tagged files
+    ///
+    /// Database: Items are stored in the 'items' table with full tag metadata
+    /// and provenance tracking. Use 'tessitura status' to view scanned items.
     Scan {
         /// Path to the music directory
         path: PathBuf,
