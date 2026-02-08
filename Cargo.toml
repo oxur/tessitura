@@ -1,0 +1,12 @@
+[package]
+name = "tessitura"
+version = "0.0.1"
+edition = "2024"
+description = "A musicological library cataloging tool for serious musicians"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/oxur/tessitura"
+homepage = "https://github.com/oxur/tessitura"
+documentation = "https://docs.rs/tessitura"
+readme = "README.md"
+keywords = ["music", "metadata", "cataloging", "musicology", "audio"]
+categories = ["command-line-utilities", "multimedia::audio"]
