@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
+use tessitura_etl::Config;
 
 mod commands;
 
@@ -72,12 +73,7 @@ enum Commands {
     },
 }
 
-fn default_db_path() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("tessitura")
-        .join("tessitura.db")
-}
+// Removed: now using Config::load() which has default_db_path internally
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -90,25 +86,28 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    let db_path = cli.db.unwrap_or_else(default_db_path);
+    // Load configuration from file and environment variables
+    let config = if let Some(db_path) = cli.db {
+        // CLI flag takes highest priority
+        Config::load_with_db_path(db_path)?
+    } else {
+        Config::load()?
+    };
 
     // Ensure database directory exists
-    if let Some(parent) = db_path.parent() {
+    if let Some(parent) = config.database_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
     match cli.command {
         Commands::Scan { path } => {
-            commands::run_scan(path, db_path).await?;
+            commands::run_scan(path, config.database_path).await?;
         }
         Commands::Identify => {
-            // Get AcoustID API key from environment
-            let acoustid_api_key = std::env::var("ACOUSTID_API_KEY").ok();
-
-            commands::run_identify(db_path, acoustid_api_key).await?;
+            commands::run_identify(config.database_path, config.acoustid_api_key).await?;
         }
         Commands::Status { filter } => {
-            commands::show_status(db_path, filter)?;
+            commands::show_status(config.database_path, filter)?;
         }
     }
 

@@ -1,0 +1,29 @@
+# Tessitura Configuration File
+#
+# This file should be placed at: ~/.config/tessitura/config.toml
+#
+# Configuration is loaded from multiple sources with the following priority:
+# 1. CLI arguments (highest priority)
+# 2. Environment variables (TESS_* prefix)
+# 3. This config file
+# 4. Built-in defaults (lowest priority)
+
+# AcoustID API key for fingerprint matching
+# Required for identifying recordings via audio fingerprinting
+#
+# Register for a free API key at: https://acoustid.org/new-application
+#
+# Can also be set via:
+# - Environment: TESS_ACOUSTID_API_KEY=your-key-here
+acoustid_api_key = "your-acoustid-api-key-here"
+
+# Path to the SQLite database
+#
+# Stores all catalog data including Works, Expressions, Manifestations, and Items
+#
+# Can also be set via:
+# - CLI: tessitura --db /custom/path.db scan /music
+# - Environment: TESS_DATABASE_PATH=/custom/path.db
+#
+# Default: ~/.local/share/tessitura/tessitura.db
+#database_path = "/path/to/custom/tessitura.db"

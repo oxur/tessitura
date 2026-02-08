@@ -37,6 +37,7 @@ petgraph = "0.7"
 reqwest = { version = "0.12", features = ["json"] }
 walkdir = "2"
 dirs = "6"
+confyg = "0.3"
 
 # Resilience
 backon = "1"
