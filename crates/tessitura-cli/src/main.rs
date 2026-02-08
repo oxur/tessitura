@@ -79,13 +79,18 @@ Config file location:
   Windows: %APPDATA%\\tessitura\\config.toml
 
 Examples:
-  tessitura config                    # Show current config
-  tessitura config get                # Show config file contents
-  tessitura config get <key>          # Get specific value
-  tessitura config set <key> <value>  # Set a value
-  tessitura config path               # Show config file location
-  tessitura config example            # Show example config
-  tessitura config init               # Create default config file")]
+  tessitura config                        # Show current config
+  tessitura config get                    # Show config file contents
+  tessitura config get acoustid_api_key   # Get top-level value
+  tessitura config get logging.level      # Get nested value (dotted notation)
+  tessitura config set acoustid_api_key \"your-key\"  # Set top-level value
+  tessitura config set logging.level debug            # Set nested value
+  tessitura config set logging.coloured false         # Auto-detects boolean
+  tessitura config path                   # Show config file location
+  tessitura config example                # Show example config
+  tessitura config init                   # Create default config file
+
+Dotted notation: Use dots to access nested config values (e.g., logging.level)")]
     Config {
         #[command(subcommand)]
         action: Option<ConfigAction>,

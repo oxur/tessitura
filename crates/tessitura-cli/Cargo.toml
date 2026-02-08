@@ -26,6 +26,7 @@ log = { workspace = true }
 twyg = { workspace = true }
 treadle = { workspace = true }
 dirs = { workspace = true }
+toml_edit = { workspace = true }
 
 [lints]
 workspace = true
