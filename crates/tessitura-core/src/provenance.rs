@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 pub enum Source {
     /// Extracted from embedded audio file tags.
     EmbeddedTag,
-    /// AcoustID fingerprint matching.
+    /// `AcoustID` fingerprint matching.
     AcoustId,
-    /// MusicBrainz database.
+    /// `MusicBrainz` database.
     MusicBrainz,
     /// Wikidata.
     Wikidata,

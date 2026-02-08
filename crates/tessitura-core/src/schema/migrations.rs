@@ -6,7 +6,7 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-const MIGRATION_001: &str = r#"
+const MIGRATION_001: &str = r"
 -- Enable foreign keys
 PRAGMA foreign_keys = ON;
 
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS assertions (
 
 CREATE INDEX IF NOT EXISTS idx_assertions_entity_id ON assertions(entity_id);
 CREATE INDEX IF NOT EXISTS idx_assertions_entity_field ON assertions(entity_id, field);
-"#;
+";
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
     version: 1,

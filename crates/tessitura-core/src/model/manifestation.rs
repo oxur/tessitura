@@ -11,7 +11,7 @@ pub struct Manifestation {
     pub id: ManifestationId,
     pub title: String,
 
-    /// MusicBrainz release ID.
+    /// `MusicBrainz` release ID.
     pub musicbrainz_id: Option<String>,
 
     /// Record label.

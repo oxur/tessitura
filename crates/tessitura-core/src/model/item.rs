@@ -58,10 +58,10 @@ pub struct Item {
     /// SHA-256 hash of the file content (for change detection).
     pub file_hash: Option<String>,
 
-    /// AcoustID fingerprint (computed during Scan stage).
+    /// `AcoustID` fingerprint (computed during Scan stage).
     pub fingerprint: Option<String>,
 
-    /// AcoustID score (confidence of the fingerprint match, 0.0-1.0).
+    /// `AcoustID` score (confidence of the fingerprint match, 0.0-1.0).
     pub fingerprint_score: Option<f64>,
 
     // --- Embedded tag metadata (extracted during Scan stage) ---

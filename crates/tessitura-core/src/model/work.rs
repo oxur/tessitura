@@ -14,7 +14,7 @@ pub struct Work {
     pub title: String,
     pub composer: Option<String>,
 
-    /// MusicBrainz work ID, if identified.
+    /// `MusicBrainz` work ID, if identified.
     pub musicbrainz_id: Option<String>,
 
     /// Catalog number (BWV, K., Sz., BB., Op., etc.).

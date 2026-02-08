@@ -152,7 +152,7 @@ impl Database {
         Ok(())
     }
 
-    /// List all unidentified items (no expression_id).
+    /// List all unidentified items (no `expression_id`).
     pub fn list_unidentified_items(&self) -> Result<Vec<Item>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, expression_id, manifestation_id, file_path, format,
@@ -166,13 +166,14 @@ impl Database {
         )?;
 
         let items = stmt
-            .query_map([], |row| self.row_to_item(row))?
+            .query_map([], Self::row_to_item)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
         Ok(items)
     }
 
-    fn row_to_item(&self, row: &rusqlite::Row) -> rusqlite::Result<Item> {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    fn row_to_item(row: &rusqlite::Row) -> rusqlite::Result<Item> {
         use crate::model::{AudioFormat, ExpressionId, ItemId, ManifestationId};
         use chrono::DateTime;
         use std::path::PathBuf;
@@ -258,13 +259,13 @@ impl Database {
         )?;
 
         let assertions = stmt
-            .query_map([entity_id], |row| self.row_to_assertion(row))?
+            .query_map([entity_id], Self::row_to_assertion)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
         Ok(assertions)
     }
 
-    fn row_to_assertion(&self, row: &rusqlite::Row) -> rusqlite::Result<Assertion> {
+    fn row_to_assertion(row: &rusqlite::Row) -> rusqlite::Result<Assertion> {
         use crate::provenance::Source;
         use chrono::DateTime;
 
@@ -286,7 +287,6 @@ impl Database {
             "Lcgft" => Source::Lcgft,
             "Lcmpt" => Source::Lcmpt,
             "Discogs" => Source::Discogs,
-            "User" => Source::User,
             _ => Source::User,
         };
 

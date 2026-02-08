@@ -12,7 +12,7 @@ pub struct Expression {
     pub work_id: WorkId,
     pub title: Option<String>,
 
-    /// MusicBrainz recording ID.
+    /// `MusicBrainz` recording ID.
     pub musicbrainz_id: Option<String>,
 
     /// Primary performer IDs (soloists, ensembles).

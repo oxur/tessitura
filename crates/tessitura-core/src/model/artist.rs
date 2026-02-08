@@ -21,7 +21,7 @@ pub struct Artist {
     pub name: String,
     pub sort_name: Option<String>,
 
-    /// MusicBrainz artist ID.
+    /// `MusicBrainz` artist ID.
     pub musicbrainz_id: Option<String>,
 
     /// Primary role(s) this artist is known for.
