@@ -44,14 +44,16 @@ version: 1.1
 **Critical implementation decisions that differ from the original design:**
 
 ### Logging System
+
 - **Decision**: Use `twyg` (0.6.3+) instead of `tracing`
-- **Rationale**: Better configuration integration with `serde`, full TOML support, uses standard `log` crate facade
+- **Rationale**: Better configuration integration with `serde`, full TOML support, uses standard `log` crate facade with the `kv` feature for structured logs, config file search, and XDG and environment variable integration.
 - **Integration**: `twyg::Opts` embedded directly in `Config` struct (not wrapped), supports all twyg config options
 - **Configuration**: Full support via `[logging]` section in config.toml and `TESS_LOGGING_*` environment variables
 - **Key requirement**: twyg 0.6.3+ required for `#[serde(default)]` support to allow partial configs
 
 ### Configuration System
-- **Decision**: Use dotted notation for nested config keys (e.g., `logging.level`)
+
+- **Decision**: Use `confyg` crate; use dotted notation for nested config keys (e.g., `logging.level`)
 - **Implementation**: `toml_edit` crate for preserving formatting and comments
 - **Features**:
   - Get nested values: `tessitura config get logging.level`
@@ -60,7 +62,19 @@ version: 1.1
   - Create sections as needed when setting nested values
 - **Inline tables**: Support for complex values like `{ fg = "HiBlack", bg = "Reset" }`
 
+### CLI Help Documentation
+
+- **Decision**: Use clap's `#[command(long_about = "...")]` attribute for comprehensive help text
+- **Rationale**: Users deserve detailed explanations of what each command does, what happens during execution, and what to expect
+- **Implementation**:
+  - Short help (`-h`): Brief one-line description
+  - Long help (`--help`): Multi-paragraph documentation with examples, supported formats, behavior details
+  - Examples: `scan` command explains file discovery, metadata extraction, incremental updates, and output format
+- **Philosophy**: Help text is documentation - make it thorough, clear, and useful
+- **Technical note**: Use `long_about` attribute (not doc comments) to preserve exact formatting including newlines
+
 ### Workspace Lints
+
 - **Decision**: Configure allowed clippy lints at workspace level to balance code quality with pragmatism
 - **Rationale**: Avoid overly pedantic checks that don't improve actual code quality
 - **Key allowed lints**:
@@ -73,6 +87,7 @@ version: 1.1
 - **See**: `Cargo.toml` workspace lints section for full list
 
 ### Build System
+
 - **Binary location**: `./bin/` directory (gitignored, created by Makefile)
 - **Build target**: Makefile copies from `target/` to `./bin/` for convenience
 - **Important**: Never commit `bin/` to git (use `git filter-branch` to remove if accidentally committed)
@@ -686,31 +701,42 @@ These rate limits inform the backon retry and failsafe circuit breaker configura
    - Support for complex inline table values: `{ fg = "HiBlack", bg = "Reset" }`
    - Auto-creation of nested sections when setting values
 
-3. **Code Quality and Linting**
+3. **CLI Help Documentation**
+   - Enhanced all command help text using clap's `long_about` attribute
+   - Comprehensive multi-paragraph documentation for each command
+   - Detailed explanations of behavior, supported formats, and expected output
+   - Examples and usage patterns included in help text
+   - Philosophy: help text is documentation—make it thorough and useful
+
+4. **Code Quality and Linting**
    - Fixed all clippy linting errors across workspace
    - Configured workspace-level allowed lints for pragmatic balance
    - Added backticks around technical terms in documentation
    - Converted helper methods to associated functions where appropriate
    - Removed unnecessary raw string hashes
 
-4. **Build System**
+5. **Build System**
    - Cleaned up git history (removed accidentally committed binaries)
    - Ensured `bin/` directory is properly gitignored
    - Documented binary build process in Makefile
 
 **Dependencies Updated:**
+
 - `twyg`: 0.6.2 → 0.6.3 (added `#[serde(default)]` support)
 - `toml_edit`: Added 0.22 for config manipulation
 
 **Breaking Changes:**
+
 - None (fully backward compatible)
 
 **Migration Notes:**
+
 - Existing config files without `[logging]` section will use defaults
 - Old environment variable patterns still work (no breaking changes)
 - Config commands now support both top-level and nested keys
 
 **Key Implementation Decisions:**
+
 - See "Implementation Notes (v1.1)" section above for detailed rationale
 - twyg chosen over tracing for better serde integration
 - Dotted notation chosen for natural config key access
