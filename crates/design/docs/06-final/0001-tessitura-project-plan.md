@@ -5,20 +5,20 @@ author: "other tools"
 component: All
 tags: [change-me]
 created: 2026-02-07
-updated: 2026-02-07
+updated: 2026-02-08
 state: Final
 supersedes: null
 superseded-by: null
-version: 1.0
+version: 1.1
 ---
 
 # Tessitura — Project Plan
 
 **A musicological library cataloging tool for serious musicians, built in Rust.**
 
-> Version: 0.1-draft
-> Last Updated: 2026-02-07
-> Status: Pre-development — architecture and design phase complete
+> Version: 1.1
+> Last Updated: 2026-02-08
+> Status: Active development — Phase 1 complete, logging and configuration enhanced
 
 ---
 
@@ -35,6 +35,47 @@ version: 1.0
 9. [Project Structure](#9-project-structure)
 10. [Development Phases](#10-development-phases)
 11. [Open Questions and Future Directions](#11-open-questions-and-future-directions)
+12. [Version History](#version-history)
+
+---
+
+## Implementation Notes (v1.1)
+
+**Critical implementation decisions that differ from the original design:**
+
+### Logging System
+- **Decision**: Use `twyg` (0.6.3+) instead of `tracing`
+- **Rationale**: Better configuration integration with `serde`, full TOML support, uses standard `log` crate facade
+- **Integration**: `twyg::Opts` embedded directly in `Config` struct (not wrapped), supports all twyg config options
+- **Configuration**: Full support via `[logging]` section in config.toml and `TESS_LOGGING_*` environment variables
+- **Key requirement**: twyg 0.6.3+ required for `#[serde(default)]` support to allow partial configs
+
+### Configuration System
+- **Decision**: Use dotted notation for nested config keys (e.g., `logging.level`)
+- **Implementation**: `toml_edit` crate for preserving formatting and comments
+- **Features**:
+  - Get nested values: `tessitura config get logging.level`
+  - Set nested values: `tessitura config set logging.coloured false`
+  - Auto-detect value types: boolean, integer, float, string, inline tables
+  - Create sections as needed when setting nested values
+- **Inline tables**: Support for complex values like `{ fg = "HiBlack", bg = "Reset" }`
+
+### Workspace Lints
+- **Decision**: Configure allowed clippy lints at workspace level to balance code quality with pragmatism
+- **Rationale**: Avoid overly pedantic checks that don't improve actual code quality
+- **Key allowed lints**:
+  - `cargo_common_metadata`: Internal crates don't need full metadata
+  - `uninlined_format_args`: Explicit format args are sometimes clearer
+  - `unused_async`: Functions may be async for future-proofing
+  - `doc_markdown`: Backticks in docs are stylistic
+  - `needless_pass_by_value`: Taking ownership is intentional for API design
+  - `unnecessary_wraps`: Result types for consistency/future-proofing
+- **See**: `Cargo.toml` workspace lints section for full list
+
+### Build System
+- **Binary location**: `./bin/` directory (gitignored, created by Makefile)
+- **Build target**: Makefile copies from `target/` to `./bin/` for convenience
+- **Important**: Never commit `bin/` to git (use `git filter-branch` to remove if accidentally committed)
 
 ---
 
@@ -622,3 +663,59 @@ This scale is comfortably within the performance envelope of SQLite + in-memory 
 | Discogs | 60 req/min unauthenticated, 240 auth'd | Token for higher rate | Release details |
 
 These rate limits inform the backon retry and failsafe circuit breaker configuration per enrichment source.
+
+---
+
+## Version History
+
+### Version 1.1 (2026-02-08)
+
+**Major Changes:**
+
+1. **Logging System Migration (twyg)**
+   - Replaced `tracing`/`tracing-subscriber` with `twyg` 0.6.3
+   - Integrated `twyg::Opts` directly into `Config` struct
+   - Full configuration support via `[logging]` section in config.toml
+   - Environment variable support: `TESS_LOGGING_*` prefix
+   - All 14 log statements migrated from `tracing::*!` to `log::*!` macros
+
+2. **Configuration Enhancements**
+   - Implemented dotted notation for nested config keys (e.g., `logging.level`, `logging.colors.timestamp`)
+   - Added `toml_edit` dependency for TOML manipulation with format preservation
+   - Automatic value type inference: boolean, integer, float, string, inline tables
+   - Support for complex inline table values: `{ fg = "HiBlack", bg = "Reset" }`
+   - Auto-creation of nested sections when setting values
+
+3. **Code Quality and Linting**
+   - Fixed all clippy linting errors across workspace
+   - Configured workspace-level allowed lints for pragmatic balance
+   - Added backticks around technical terms in documentation
+   - Converted helper methods to associated functions where appropriate
+   - Removed unnecessary raw string hashes
+
+4. **Build System**
+   - Cleaned up git history (removed accidentally committed binaries)
+   - Ensured `bin/` directory is properly gitignored
+   - Documented binary build process in Makefile
+
+**Dependencies Updated:**
+- `twyg`: 0.6.2 → 0.6.3 (added `#[serde(default)]` support)
+- `toml_edit`: Added 0.22 for config manipulation
+
+**Breaking Changes:**
+- None (fully backward compatible)
+
+**Migration Notes:**
+- Existing config files without `[logging]` section will use defaults
+- Old environment variable patterns still work (no breaking changes)
+- Config commands now support both top-level and nested keys
+
+**Key Implementation Decisions:**
+- See "Implementation Notes (v1.1)" section above for detailed rationale
+- twyg chosen over tracing for better serde integration
+- Dotted notation chosen for natural config key access
+- Workspace lints configured to avoid overly pedantic checks
+
+### Version 1.0 (2026-02-07)
+
+Initial architecture and design document. Defined FRBR-based data model, ETL pipeline using Treadle workflow engine, and development phases.
