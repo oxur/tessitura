@@ -9,6 +9,7 @@ use crate::musicbrainz::MusicBrainzClient;
 #[derive(Debug)]
 pub struct IdentifyStage {
     acoustid: Option<AcoustIdClient>,
+    #[allow(dead_code)] // Will be used when MB integration is completed
     musicbrainz: MusicBrainzClient,
     db_path: PathBuf,
 }

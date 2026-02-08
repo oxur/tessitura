@@ -1,4 +1,5 @@
 /// A schema migration.
+#[derive(Debug)]
 pub struct Migration {
     pub version: u32,
     pub name: &'static str,

@@ -8,6 +8,7 @@ use crate::provenance::Assertion;
 use super::migrations::MIGRATIONS;
 
 /// A database connection with CRUD methods for FRBR entities.
+#[derive(Debug)]
 pub struct Database {
     conn: Connection,
 }
