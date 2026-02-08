@@ -141,21 +141,37 @@ pub fn set_config(key: String, value: String) -> Result<()> {
 
 /// Infer the TOML value type from a string
 fn infer_toml_value(s: &str) -> Result<Value> {
+    let trimmed = s.trim();
+
+    // Try inline table (e.g., { fg = "HiBlack", bg = "Reset" })
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        // Parse as TOML to get the inline table
+        let toml_doc = format!("temp = {}", trimmed)
+            .parse::<DocumentMut>()
+            .context("Failed to parse inline table")?;
+
+        if let Some(value) = toml_doc.get("temp").and_then(|item| item.as_value()) {
+            return Ok(value.clone());
+        }
+
+        anyhow::bail!("Failed to extract inline table value");
+    }
+
     // Try boolean
-    if s == "true" {
+    if trimmed == "true" {
         return Ok(Value::Boolean(toml_edit::Formatted::new(true)));
     }
-    if s == "false" {
+    if trimmed == "false" {
         return Ok(Value::Boolean(toml_edit::Formatted::new(false)));
     }
 
     // Try integer
-    if let Ok(i) = s.parse::<i64>() {
+    if let Ok(i) = trimmed.parse::<i64>() {
         return Ok(Value::Integer(toml_edit::Formatted::new(i)));
     }
 
     // Try float
-    if let Ok(f) = s.parse::<f64>() {
+    if let Ok(f) = trimmed.parse::<f64>() {
         return Ok(Value::Float(toml_edit::Formatted::new(f)));
     }
 
