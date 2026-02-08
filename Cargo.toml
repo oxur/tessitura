@@ -2,7 +2,7 @@
 name = "tessitura"
 version = "0.1.0"
 edition = "2024"
-description = "A musicological library cataloging tool for serious musicians"
+description = "A musicological audio media library cataloging tool for serious musicians"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/oxur/tessitura"
 homepage = "https://github.com/oxur/tessitura"

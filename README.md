@@ -8,7 +8,7 @@
 
 [![][logo]][logo-large]
 
-*A musicological library cataloging tool for serious musicians, built in Rust.*
+*A musicological audio media library cataloging tool for serious musicians, written in Rust.*
 
 The name comes from *tessitura* — the vocal or instrumental range where a
 performer is most comfortable and expressive. The metaphor: finding the range
