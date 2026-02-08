@@ -62,25 +62,26 @@ impl Config {
         let config_path = config_file_path();
 
         // Create Confygery builder
-        let mut builder = Confygery::new()
-            .context("Failed to create config builder")?;
+        let mut builder = Confygery::new().context("Failed to create config builder")?;
 
         // If config file exists, load it
         if config_path.exists() {
-            let path_str = config_path.to_str()
+            let path_str = config_path
+                .to_str()
                 .ok_or_else(|| anyhow::anyhow!("Config path contains invalid UTF-8"))?;
-            builder.add_file(path_str)
+            builder
+                .add_file(path_str)
                 .context("Failed to load config file")?;
         }
 
         // Set up environment variable scanning with TESS_ prefix
         let env_opts = env::Options::with_top_level("tess");
-        builder.add_env(env_opts)
+        builder
+            .add_env(env_opts)
             .context("Failed to load environment variables")?;
 
         // Build and deserialize into Config
-        let config: Self = builder.build()
-            .context("Failed to build configuration")?;
+        let config: Self = builder.build().context("Failed to build configuration")?;
 
         Ok(config)
     }
@@ -254,13 +255,11 @@ pub fn ensure_config_file() -> Result<bool> {
 
     // Create parent directory
     if let Some(parent) = config_path.parent() {
-        std::fs::create_dir_all(parent)
-            .context("Failed to create config directory")?;
+        std::fs::create_dir_all(parent).context("Failed to create config directory")?;
     }
 
     // Write default config
-    std::fs::write(&config_path, example_config())
-        .context("Failed to write config file")?;
+    std::fs::write(&config_path, example_config()).context("Failed to write config file")?;
 
     Ok(true)
 }

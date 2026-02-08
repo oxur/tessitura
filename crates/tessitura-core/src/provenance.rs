@@ -78,12 +78,7 @@ mod tests {
 
     #[test]
     fn test_assertion_new() {
-        let assertion = Assertion::new(
-            "work-id",
-            "genre",
-            json!("Classical"),
-            Source::MusicBrainz,
-        );
+        let assertion = Assertion::new("work-id", "genre", json!("Classical"), Source::MusicBrainz);
 
         assert_eq!(assertion.entity_id, "work-id");
         assert_eq!(assertion.field, "genre");
@@ -93,8 +88,8 @@ mod tests {
 
     #[test]
     fn test_assertion_with_confidence() {
-        let assertion = Assertion::new("id", "field", json!("value"), Source::AcoustId)
-            .with_confidence(0.95);
+        let assertion =
+            Assertion::new("id", "field", json!("value"), Source::AcoustId).with_confidence(0.95);
 
         assert_eq!(assertion.confidence, Some(0.95));
     }

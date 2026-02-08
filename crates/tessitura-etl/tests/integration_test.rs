@@ -32,8 +32,14 @@ fn test_database_schema_creation() {
     let db = Database::open(&db_path).expect("Failed to open database");
 
     // Verify tables exist by querying them
-    let unidentified = db.list_unidentified_items().expect("Failed to list unidentified");
-    assert_eq!(unidentified.len(), 0, "New database should have no unidentified items");
+    let unidentified = db
+        .list_unidentified_items()
+        .expect("Failed to list unidentified");
+    assert_eq!(
+        unidentified.len(),
+        0,
+        "New database should have no unidentified items"
+    );
 }
 
 /// Test that the status command can query an empty database
@@ -45,7 +51,9 @@ fn test_status_on_empty_database() {
     let db = Database::open(&db_path).expect("Failed to open database");
 
     // Count unidentified items
-    let unidentified = db.list_unidentified_items().expect("Failed to list unidentified");
+    let unidentified = db
+        .list_unidentified_items()
+        .expect("Failed to list unidentified");
 
     assert_eq!(unidentified.len(), 0);
 }

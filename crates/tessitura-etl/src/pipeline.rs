@@ -13,8 +13,9 @@ pub fn build_pipeline(
     acoustid_api_key: Option<String>,
 ) -> treadle::Result<Workflow> {
     let scan_stage = ScanStage::new(music_dir, db_path.clone());
-    let identify_stage = IdentifyStage::new(acoustid_api_key, db_path)
-        .map_err(|e| treadle::TreadleError::InvalidWorkflow(format!("Failed to create identify stage: {e}")))?;
+    let identify_stage = IdentifyStage::new(acoustid_api_key, db_path).map_err(|e| {
+        treadle::TreadleError::InvalidWorkflow(format!("Failed to create identify stage: {e}"))
+    })?;
 
     Workflow::builder()
         .stage("scan", scan_stage)

@@ -2,17 +2,17 @@ use anyhow::Result;
 use std::path::PathBuf;
 use tessitura_core::schema::Database;
 
-pub async fn run_identify(
-    db_path: PathBuf,
-    _acoustid_api_key: Option<String>,
-) -> Result<()> {
+pub async fn run_identify(db_path: PathBuf, _acoustid_api_key: Option<String>) -> Result<()> {
     log::info!("Starting identification");
 
     // Check how many unidentified items we have
     let db = Database::open(&db_path)?;
     let unidentified = db.list_unidentified_items()?;
 
-    println!("Found {} unidentified items in database", unidentified.len());
+    println!(
+        "Found {} unidentified items in database",
+        unidentified.len()
+    );
 
     if unidentified.is_empty() {
         println!("No items to identify");
@@ -28,7 +28,10 @@ pub async fn run_identify(
 
     println!("\n⚠️  Identification logic not yet fully implemented");
     println!("This will submit fingerprints to AcoustID and match against MusicBrainz.");
-    println!("Placeholder: {} items ready for identification", unidentified.len());
+    println!(
+        "Placeholder: {} items ready for identification",
+        unidentified.len()
+    );
 
     Ok(())
 }

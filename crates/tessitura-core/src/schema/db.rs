@@ -341,11 +341,9 @@ mod tests {
         // Verify migrations table exists
         let count: i64 = db
             .conn()
-            .query_row(
-                "SELECT COUNT(*) FROM schema_migrations",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 1); // One migration applied
     }

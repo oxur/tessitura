@@ -19,7 +19,8 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     /// Scan a music directory for audio files
-    #[command(long_about = "Recursively walks the specified directory to discover audio files and extract
+    #[command(
+        long_about = "Recursively walks the specified directory to discover audio files and extract
 their metadata. For each audio file found:
 
   - Extracts embedded tags (title, artist, album, track number, year, genre)
@@ -39,14 +40,16 @@ Output:
   - No errors for properly tagged files
 
 Database: Items are stored in the 'items' table with full tag metadata
-and provenance tracking. Use 'tessitura status' to view scanned items.")]
+and provenance tracking. Use 'tessitura status' to view scanned items."
+    )]
     Scan {
         /// Path to the music directory
         path: PathBuf,
     },
     /// Identify recordings via AcoustID/MusicBrainz
     #[command(alias = "id")]
-    #[command(long_about = "Processes all unidentified items in the database by matching them against
+    #[command(
+        long_about = "Processes all unidentified items in the database by matching them against
 MusicBrainz recordings. For each unidentified item:
 
   - Uses AcoustID fingerprint matching (if available)
@@ -63,7 +66,8 @@ Rate limits are respected (1 req/sec for MusicBrainz).
 Output:
   - Progress for each identification attempt
   - Success/failure status per item
-  - Final summary of identified vs unidentified items")]
+  - Final summary of identified vs unidentified items"
+    )]
     Identify,
     /// Show pipeline status
     Status {

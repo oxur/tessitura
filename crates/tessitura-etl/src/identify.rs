@@ -61,8 +61,8 @@ impl IdentifyStage {
                             item.file_path.display()
                         );
                         let _ = (fingerprint, duration); // Suppress unused warnings
-                                                          // TODO: Implement in Phase 1.6 completion
-                                                          // let response = self.acoustid.lookup(fingerprint, duration).await?;
+                                                         // TODO: Implement in Phase 1.6 completion
+                                                         // let response = self.acoustid.lookup(fingerprint, duration).await?;
                     }
                 }
             }

@@ -12,11 +12,16 @@ pub fn show_config() -> Result<()> {
     println!("Config file: {}", config::config_file_path().display());
 
     let exists = config::config_file_path().exists();
-    println!("File exists: {}\n", if exists { "yes" } else { "no (using defaults)" });
+    println!(
+        "File exists: {}\n",
+        if exists { "yes" } else { "no (using defaults)" }
+    );
 
     println!("Settings:");
-    println!("  acoustid_api_key: {}",
-        config.acoustid_api_key.as_deref().unwrap_or("<not set>"));
+    println!(
+        "  acoustid_api_key: {}",
+        config.acoustid_api_key.as_deref().unwrap_or("<not set>")
+    );
     println!("  database_path: {}", config.database_path.display());
     println!("  logging.level: {:?}", config.logging.level());
     println!("  logging.coloured: {}", config.logging.coloured());
@@ -33,12 +38,16 @@ pub fn get_config(key: Option<String>) -> Result<()> {
         let config_path = config::config_file_path();
 
         if !config_path.exists() {
-            anyhow::bail!("Config file does not exist: {}\n\nRun 'tessitura config init' to create it.", config_path.display());
+            anyhow::bail!(
+                "Config file does not exist: {}\n\nRun 'tessitura config init' to create it.",
+                config_path.display()
+            );
         }
 
-        let contents = std::fs::read_to_string(&config_path)
-            .context("Failed to read config file")?;
-        let doc = contents.parse::<DocumentMut>()
+        let contents =
+            std::fs::read_to_string(&config_path).context("Failed to read config file")?;
+        let doc = contents
+            .parse::<DocumentMut>()
             .context("Failed to parse config file")?;
 
         // Split key by dots for nested access
@@ -69,8 +78,8 @@ pub fn get_config(key: Option<String>) -> Result<()> {
         let config_path = config::config_file_path();
 
         if config_path.exists() {
-            let contents = std::fs::read_to_string(&config_path)
-                .context("Failed to read config file")?;
+            let contents =
+                std::fs::read_to_string(&config_path).context("Failed to read config file")?;
             print!("{}", contents);
         } else {
             println!("Config file does not exist: {}", config_path.display());
@@ -102,9 +111,9 @@ pub fn set_config(key: String, value: String) -> Result<()> {
     config::ensure_config_file()?;
 
     // Read existing config
-    let contents = std::fs::read_to_string(&config_path)
-        .context("Failed to read config file")?;
-    let mut doc = contents.parse::<DocumentMut>()
+    let contents = std::fs::read_to_string(&config_path).context("Failed to read config file")?;
+    let mut doc = contents
+        .parse::<DocumentMut>()
         .context("Failed to parse config file")?;
 
     // Split key by dots for nested access
@@ -121,7 +130,12 @@ pub fn set_config(key: String, value: String) -> Result<()> {
         current = current
             .get_mut(*part)
             .and_then(|item| item.as_table_mut())
-            .ok_or_else(|| anyhow::anyhow!("Path '{}' exists but is not a table", key_parts[..key_parts.len() - 1].join(".")))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Path '{}' exists but is not a table",
+                    key_parts[..key_parts.len() - 1].join(".")
+                )
+            })?;
     }
 
     // Set the final value
@@ -130,8 +144,7 @@ pub fn set_config(key: String, value: String) -> Result<()> {
     current[final_key] = Item::Value(toml_value);
 
     // Write back
-    std::fs::write(&config_path, doc.to_string())
-        .context("Failed to write config file")?;
+    std::fs::write(&config_path, doc.to_string()).context("Failed to write config file")?;
 
     println!("✓ Updated {} = {}", key, value);
     println!("  in {}", config_path.display());

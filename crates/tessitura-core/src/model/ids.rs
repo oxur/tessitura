@@ -51,10 +51,7 @@ define_id!(
     "Unique identifier for a performance/recording."
 );
 define_id!(ManifestationId, "Unique identifier for a release.");
-define_id!(
-    ItemId,
-    "Unique identifier for a physical/digital file."
-);
+define_id!(ItemId, "Unique identifier for a physical/digital file.");
 define_id!(ArtistId, "Unique identifier for an artist.");
 
 #[cfg(test)]
