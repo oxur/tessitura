@@ -81,13 +81,13 @@ enum Commands {
     /// - Windows: %APPDATA%\tessitura\config.toml
     ///
     /// Examples:
-    ///   tessitura config              # Show current config
-    ///   tessitura config get          # Show config file contents
-    ///   tessitura config get <key>    # Get specific value
+    ///   tessitura config                    # Show current config
+    ///   tessitura config get                # Show config file contents
+    ///   tessitura config get <key>          # Get specific value
     ///   tessitura config set <key> <value>  # Set a value
-    ///   tessitura config path         # Show config file location
-    ///   tessitura config example      # Show example config
-    ///   tessitura config init         # Create default config file
+    ///   tessitura config path               # Show config file location
+    ///   tessitura config example            # Show example config
+    ///   tessitura config init               # Create default config file
     Config {
         #[command(subcommand)]
         action: Option<ConfigAction>,
