@@ -1,0 +1,29 @@
+[package]
+name = "tessitura-etl"
+version = "0.1.0"
+description = "ETL pipeline stages for tessitura"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tessitura-core = { workspace = true }
+treadle = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+lofty = { workspace = true }
+reqwest = { workspace = true }
+backon = { workspace = true }
+walkdir = { workspace = true }
+dirs = { workspace = true }
+async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

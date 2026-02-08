@@ -1,0 +1,15 @@
+[package]
+name = "tessitura-graph"
+version = "0.1.0"
+description = "Music knowledge graph for tessitura"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tessitura-core = { workspace = true }
+petgraph = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

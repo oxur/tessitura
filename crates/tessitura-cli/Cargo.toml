@@ -1,0 +1,31 @@
+[package]
+name = "tessitura"
+version = "0.1.0"
+description = "A musicological library cataloging tool for serious musicians"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["music", "metadata", "cataloging", "musicology", "audio"]
+categories = ["command-line-utilities", "multimedia::audio"]
+
+[[bin]]
+name = "tessitura"
+path = "src/main.rs"
+
+[dependencies]
+tessitura-core = { workspace = true }
+tessitura-etl = { workspace = true }
+tessitura-graph = { workspace = true }
+tessitura-search = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+treadle = { workspace = true }
+dirs = { workspace = true }
+
+[lints]
+workspace = true

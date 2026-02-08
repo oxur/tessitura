@@ -1,11 +1,11 @@
 [package]
-name = "oxur-design"
+name = "tessitura-design"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Oxur Design Documents (ODDs) - design documentation for the Oxur project"
+description = "Oxur Design Documents (ODDs) - design documentation for the Tessitura project"
 readme = "README.md"
 
 # This is a documentation-only crate with no code

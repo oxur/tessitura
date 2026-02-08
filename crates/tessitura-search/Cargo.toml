@@ -1,0 +1,14 @@
+[package]
+name = "tessitura-search"
+version = "0.1.0"
+description = "Vector search for tessitura"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tessitura-core = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

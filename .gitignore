@@ -3,3 +3,6 @@ Cargo.lock
 /workbench
 /assets/ai/ai-rust
 .claude
+/docs/completion
+/docs/validation
+/scripts/validate-phase*.sh
