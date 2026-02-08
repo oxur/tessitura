@@ -15,28 +15,48 @@ Configuration sources are merged in the following order (highest to lowest prior
 
 ### Location
 
-- **Linux/macOS**: `~/.config/tessitura/config.toml`
+The configuration file location varies by platform:
+
+- **Linux**: `~/.config/tessitura/config.toml`
+- **macOS**: `~/Library/Application Support/tessitura/config.toml`
 - **Windows**: `%APPDATA%\tessitura\config.toml`
 
-### Example
+Run `tessitura config path` to see the exact location on your system.
 
-Copy `config.toml.example` from the repository root to the config directory:
+### Creating the Config File
+
+The easiest way to create a config file is to use the CLI:
 
 ```bash
-mkdir -p ~/.config/tessitura
-cp config.toml.example ~/.config/tessitura/config.toml
-# Edit with your settings
-editor ~/.config/tessitura/config.toml
+# Create default config file
+tessitura config init
+
+# View the config file location
+tessitura config path
+
+# View current configuration
+tessitura config
 ```
 
-### Format
+### Managing Configuration
 
-```toml
-# AcoustID API key for fingerprint matching
-acoustid_api_key = "your-api-key-here"
+Use the `tessitura config` command to manage your configuration:
 
-# Optional: custom database path
-# database_path = "/path/to/tessitura.db"
+```bash
+# Show current effective configuration
+tessitura config
+
+# Get a specific value
+tessitura config get acoustid_api_key
+
+# Set a value
+tessitura config set acoustid_api_key "your-api-key"
+
+# Show example configuration
+tessitura config example
+
+# View raw config file
+tessitura config get
 ```
 
 ## Environment Variables

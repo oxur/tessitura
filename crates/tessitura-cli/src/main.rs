@@ -71,6 +71,49 @@ enum Commands {
         /// Optional filter (album name, artist, etc.)
         filter: Option<String>,
     },
+    /// Manage configuration
+    ///
+    /// View and modify tessitura configuration settings.
+    ///
+    /// Config file location:
+    /// - Linux: ~/.config/tessitura/config.toml
+    /// - macOS: ~/Library/Application Support/tessitura/config.toml
+    /// - Windows: %APPDATA%\tessitura\config.toml
+    ///
+    /// Examples:
+    ///   tessitura config              # Show current config
+    ///   tessitura config get          # Show config file contents
+    ///   tessitura config get <key>    # Get specific value
+    ///   tessitura config set <key> <value>  # Set a value
+    ///   tessitura config path         # Show config file location
+    ///   tessitura config example      # Show example config
+    ///   tessitura config init         # Create default config file
+    Config {
+        #[command(subcommand)]
+        action: Option<ConfigAction>,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum ConfigAction {
+    /// Get configuration value(s)
+    Get {
+        /// Specific key to get (acoustid_api_key, database_path)
+        key: Option<String>,
+    },
+    /// Set a configuration value
+    Set {
+        /// Configuration key
+        key: String,
+        /// Configuration value
+        value: String,
+    },
+    /// Show config file path
+    Path,
+    /// Show example configuration
+    Example,
+    /// Initialize config file with defaults
+    Init,
 }
 
 // Removed: now using Config::load() which has default_db_path internally
@@ -108,6 +151,29 @@ async fn main() -> Result<()> {
         }
         Commands::Status { filter } => {
             commands::show_status(config.database_path, filter)?;
+        }
+        Commands::Config { action } => {
+            match action {
+                None => {
+                    // No subcommand, show current config
+                    commands::config::show_config()?;
+                }
+                Some(ConfigAction::Get { key }) => {
+                    commands::config::get_config(key)?;
+                }
+                Some(ConfigAction::Set { key, value }) => {
+                    commands::config::set_config(key, value)?;
+                }
+                Some(ConfigAction::Path) => {
+                    commands::config::show_path()?;
+                }
+                Some(ConfigAction::Example) => {
+                    commands::config::show_example()?;
+                }
+                Some(ConfigAction::Init) => {
+                    commands::config::init_config()?;
+                }
+            }
         }
     }
 

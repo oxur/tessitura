@@ -1,3 +1,4 @@
+pub mod config;
 pub mod identify;
 pub mod scan;
 pub mod status;

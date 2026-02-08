@@ -97,12 +97,70 @@ fn default_db_path() -> PathBuf {
 
 /// Get the config file path.
 ///
-/// Returns: ~/.config/tessitura/config.toml (or platform equivalent)
-fn config_file_path() -> PathBuf {
+/// Returns:
+/// - Linux: ~/.config/tessitura/config.toml
+/// - macOS: ~/Library/Application Support/tessitura/config.toml
+/// - Windows: %APPDATA%\tessitura\config.toml
+pub fn config_file_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("tessitura")
         .join("config.toml")
+}
+
+/// Get the example config file content.
+pub fn example_config() -> &'static str {
+    r#"# Tessitura Configuration File
+#
+# Configuration is loaded from multiple sources with the following priority:
+# 1. CLI arguments (highest priority)
+# 2. Environment variables (TESS_* prefix)
+# 3. This config file
+# 4. Built-in defaults (lowest priority)
+
+# AcoustID API key for fingerprint matching
+# Required for identifying recordings via audio fingerprinting
+#
+# Register for a free API key at: https://acoustid.org/new-application
+#
+# Can also be set via:
+# - Environment: TESS_ACOUSTID_API_KEY=your-key-here
+acoustid_api_key = "your-acoustid-api-key-here"
+
+# Path to the SQLite database
+#
+# Stores all catalog data including Works, Expressions, Manifestations, and Items
+#
+# Can also be set via:
+# - CLI: tessitura --db /custom/path.db scan /music
+# - Environment: TESS_DATABASE_PATH=/custom/path.db
+#
+# Default: Platform-specific data directory
+#database_path = "/path/to/custom/tessitura.db"
+"#
+}
+
+/// Create default config file if it doesn't exist.
+///
+/// Returns true if a new file was created, false if it already existed.
+pub fn ensure_config_file() -> Result<bool> {
+    let config_path = config_file_path();
+
+    if config_path.exists() {
+        return Ok(false);
+    }
+
+    // Create parent directory
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)
+            .context("Failed to create config directory")?;
+    }
+
+    // Write default config
+    std::fs::write(&config_path, example_config())
+        .context("Failed to write config file")?;
+
+    Ok(true)
 }
 
 #[cfg(test)]
