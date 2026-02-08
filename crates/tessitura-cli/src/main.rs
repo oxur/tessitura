@@ -19,52 +19,50 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     /// Scan a music directory for audio files
-    ///
-    /// Recursively walks the specified directory to discover audio files and extract
-    /// their metadata. For each audio file found:
-    ///
-    /// - Extracts embedded tags (title, artist, album, track number, year, genre)
-    /// - Records file metadata (path, size, format, modification time)
-    /// - Creates Item records in the database
-    /// - Tracks files in the pipeline for downstream identification
-    ///
-    /// Supported formats: FLAC, MP3, OGG, WAV, M4A/AAC
-    ///
-    /// The scan is incremental: previously scanned files are skipped unless their
-    /// modification time has changed. Changed files are re-scanned and updated.
-    /// Files removed from disk are detected and marked accordingly.
-    ///
-    /// Output:
-    /// - Real-time progress indicators for each stage
-    /// - Summary showing files discovered, added, updated, and removed
-    /// - No errors for properly tagged files
-    ///
-    /// Database: Items are stored in the 'items' table with full tag metadata
-    /// and provenance tracking. Use 'tessitura status' to view scanned items.
+    #[command(long_about = "Recursively walks the specified directory to discover audio files and extract
+their metadata. For each audio file found:
+
+  - Extracts embedded tags (title, artist, album, track number, year, genre)
+  - Records file metadata (path, size, format, modification time)
+  - Creates Item records in the database
+  - Tracks files in the pipeline for downstream identification
+
+Supported formats: FLAC, MP3, OGG, WAV, M4A/AAC
+
+The scan is incremental: previously scanned files are skipped unless their
+modification time has changed. Changed files are re-scanned and updated.
+Files removed from disk are detected and marked accordingly.
+
+Output:
+  - Real-time progress indicators for each stage
+  - Summary showing files discovered, added, updated, and removed
+  - No errors for properly tagged files
+
+Database: Items are stored in the 'items' table with full tag metadata
+and provenance tracking. Use 'tessitura status' to view scanned items.")]
     Scan {
         /// Path to the music directory
         path: PathBuf,
     },
     /// Identify recordings via AcoustID/MusicBrainz
-    ///
-    /// Processes all unidentified items in the database by matching them against
-    /// MusicBrainz recordings. For each unidentified item:
-    ///
-    /// - Uses AcoustID fingerprint matching (if available)
-    /// - Falls back to metadata-based search (artist, album, title)
-    /// - Creates Work, Expression, Manifestation, and Artist records
-    /// - Links Items to their identified Expressions and Manifestations
-    ///
-    /// This command only processes items already scanned into the database.
-    /// Run 'tessitura scan' first to discover and catalog audio files.
-    ///
-    /// Requires ACOUSTID_API_KEY environment variable for fingerprint matching.
-    /// Rate limits are respected (1 req/sec for MusicBrainz).
-    ///
-    /// Output:
-    /// - Progress for each identification attempt
-    /// - Success/failure status per item
-    /// - Final summary of identified vs unidentified items
+    #[command(long_about = "Processes all unidentified items in the database by matching them against
+MusicBrainz recordings. For each unidentified item:
+
+  - Uses AcoustID fingerprint matching (if available)
+  - Falls back to metadata-based search (artist, album, title)
+  - Creates Work, Expression, Manifestation, and Artist records
+  - Links Items to their identified Expressions and Manifestations
+
+This command only processes items already scanned into the database.
+Run 'tessitura scan' first to discover and catalog audio files.
+
+Requires TESS_ACOUSTID_API_KEY environment variable for fingerprint matching.
+Rate limits are respected (1 req/sec for MusicBrainz).
+
+Output:
+  - Progress for each identification attempt
+  - Success/failure status per item
+  - Final summary of identified vs unidentified items")]
     Identify,
     /// Show pipeline status
     Status {
@@ -72,22 +70,21 @@ enum Commands {
         filter: Option<String>,
     },
     /// Manage configuration
-    ///
-    /// View and modify tessitura configuration settings.
-    ///
-    /// Config file location:
-    /// - Linux: ~/.config/tessitura/config.toml
-    /// - macOS: ~/Library/Application Support/tessitura/config.toml
-    /// - Windows: %APPDATA%\tessitura\config.toml
-    ///
-    /// Examples:
-    ///   tessitura config                    # Show current config
-    ///   tessitura config get                # Show config file contents
-    ///   tessitura config get <key>          # Get specific value
-    ///   tessitura config set <key> <value>  # Set a value
-    ///   tessitura config path               # Show config file location
-    ///   tessitura config example            # Show example config
-    ///   tessitura config init               # Create default config file
+    #[command(long_about = "View and modify tessitura configuration settings.
+
+Config file location:
+  Linux:   ~/.config/tessitura/config.toml
+  macOS:   ~/Library/Application Support/tessitura/config.toml
+  Windows: %APPDATA%\\tessitura\\config.toml
+
+Examples:
+  tessitura config                    # Show current config
+  tessitura config get                # Show config file contents
+  tessitura config get <key>          # Get specific value
+  tessitura config set <key> <value>  # Set a value
+  tessitura config path               # Show config file location
+  tessitura config example            # Show example config
+  tessitura config init               # Create default config file")]
     Config {
         #[command(subcommand)]
         action: Option<ConfigAction>,
