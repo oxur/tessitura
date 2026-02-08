@@ -45,11 +45,26 @@ enum Commands {
         path: PathBuf,
     },
     /// Identify recordings via AcoustID/MusicBrainz
-    Identify {
-        /// Path to the music directory (for context)
-        #[arg(long)]
-        music_dir: Option<PathBuf>,
-    },
+    ///
+    /// Processes all unidentified items in the database by matching them against
+    /// MusicBrainz recordings. For each unidentified item:
+    ///
+    /// - Uses AcoustID fingerprint matching (if available)
+    /// - Falls back to metadata-based search (artist, album, title)
+    /// - Creates Work, Expression, Manifestation, and Artist records
+    /// - Links Items to their identified Expressions and Manifestations
+    ///
+    /// This command only processes items already scanned into the database.
+    /// Run 'tessitura scan' first to discover and catalog audio files.
+    ///
+    /// Requires ACOUSTID_API_KEY environment variable for fingerprint matching.
+    /// Rate limits are respected (1 req/sec for MusicBrainz).
+    ///
+    /// Output:
+    /// - Progress for each identification attempt
+    /// - Success/failure status per item
+    /// - Final summary of identified vs unidentified items
+    Identify,
     /// Show pipeline status
     Status {
         /// Optional filter (album name, artist, etc.)
@@ -86,14 +101,11 @@ async fn main() -> Result<()> {
         Commands::Scan { path } => {
             commands::run_scan(path, db_path).await?;
         }
-        Commands::Identify { music_dir } => {
+        Commands::Identify => {
             // Get AcoustID API key from environment
             let acoustid_api_key = std::env::var("ACOUSTID_API_KEY").ok();
 
-            // Use current directory if no music_dir specified
-            let music_dir = music_dir.unwrap_or_else(|| PathBuf::from("."));
-
-            commands::run_identify(music_dir, db_path, acoustid_api_key).await?;
+            commands::run_identify(db_path, acoustid_api_key).await?;
         }
         Commands::Status { filter } => {
             commands::show_status(db_path, filter)?;

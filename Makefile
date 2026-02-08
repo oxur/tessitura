@@ -22,6 +22,8 @@ RUST_VERSION := $(shell rustc --version 2>/dev/null || echo "unknown")
 # Default target
 .DEFAULT_GOAL := help
 
+BINARIES := tessitura
+
 # Git remotes to push to
 GIT_REMOTES := macpro github codeberg
 
