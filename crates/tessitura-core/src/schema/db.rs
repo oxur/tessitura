@@ -58,7 +58,7 @@ impl Database {
         // Apply pending migrations
         for migration in MIGRATIONS {
             if !applied.contains(&migration.version) {
-                tracing::info!(
+                log::info!(
                     "Applying migration {} ({})",
                     migration.version,
                     migration.name

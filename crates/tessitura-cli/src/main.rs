@@ -118,13 +118,6 @@ enum ConfigAction {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
-
     let cli = Cli::parse();
 
     // Load configuration from file and environment variables
@@ -134,6 +127,12 @@ async fn main() -> Result<()> {
     } else {
         Config::load()?
     };
+
+    // Initialize logging with config
+    if let Err(e) = twyg::setup(config.logging.clone()) {
+        eprintln!("Warning: Failed to initialize logging: {}", e);
+        eprintln!("Continuing with default stderr output");
+    }
 
     // Ensure database directory exists
     if let Some(parent) = config.database_path.parent() {

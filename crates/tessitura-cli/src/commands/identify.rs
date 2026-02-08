@@ -6,7 +6,7 @@ pub async fn run_identify(
     db_path: PathBuf,
     _acoustid_api_key: Option<String>,
 ) -> Result<()> {
-    tracing::info!("Starting identification");
+    log::info!("Starting identification");
 
     // Check how many unidentified items we have
     let db = Database::open(&db_path)?;

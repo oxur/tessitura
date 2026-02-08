@@ -28,6 +28,15 @@ pub struct Config {
     /// - Default: ~/.local/share/tessitura/tessitura.db
     #[serde(default = "default_db_path")]
     pub database_path: PathBuf,
+
+    /// Logging configuration.
+    ///
+    /// Can be set via:
+    /// - ENV: TESS_LOGGING_* (e.g., TESS_LOGGING_LEVEL=debug)
+    /// - Config: [logging] section
+    /// - Default: Info level, colored output to stdout
+    #[serde(default = "default_logging")]
+    pub logging: twyg::Opts,
 }
 
 impl Default for Config {
@@ -35,6 +44,7 @@ impl Default for Config {
         Self {
             acoustid_api_key: None,
             database_path: default_db_path(),
+            logging: default_logging(),
         }
     }
 }
@@ -95,6 +105,25 @@ fn default_db_path() -> PathBuf {
         .join("tessitura.db")
 }
 
+/// Get the default logging configuration.
+///
+/// Returns twyg::Opts configured with:
+/// - Info level logging
+/// - Colored output
+/// - Output to stdout
+/// - No caller reporting
+/// - Padded level names
+fn default_logging() -> twyg::Opts {
+    twyg::OptsBuilder::new()
+        .coloured(true)
+        .output(twyg::Output::Stdout)
+        .level(twyg::LogLevel::Info)
+        .report_caller(false)
+        .pad_level(true)
+        .build()
+        .expect("Failed to build default logging configuration")
+}
+
 /// Get the config file path.
 ///
 /// Returns:
@@ -110,7 +139,7 @@ pub fn config_file_path() -> PathBuf {
 
 /// Get the example config file content.
 pub fn example_config() -> &'static str {
-    r#"# Tessitura Configuration File
+    r###"# Tessitura Configuration File
 #
 # Configuration is loaded from multiple sources with the following priority:
 # 1. CLI arguments (highest priority)
@@ -137,7 +166,80 @@ acoustid_api_key = "your-acoustid-api-key-here"
 #
 # Default: Platform-specific data directory
 #database_path = "/path/to/custom/tessitura.db"
-"#
+
+# Logging configuration
+#
+# All options can also be set via environment variables with TESS_LOGGING_* prefix
+# Examples:
+#   TESS_LOGGING_LEVEL=debug
+#   TESS_LOGGING_COLOURED=false
+#   TESS_LOGGING_OUTPUT=stderr
+[logging]
+# Enable colored output (true/false)
+# Default: true
+coloured = true
+
+# Output destination: "stdout" or "stderr"
+# Default: "stdout"
+output = "stdout"
+
+# Log level: "trace", "debug", "info", "warn", "error"
+# Default: "info"
+level = "info"
+
+# Report caller location (file and line number)
+# Default: false
+report_caller = false
+
+# Timestamp format (strftime format string)
+# Default: "%Y-%m-%d %H:%M:%S"
+#timestamp_format = "%Y-%m-%d %H:%M:%S"
+
+# Pad level names to equal width
+# Default: true
+pad_level = true
+
+# Padding amount (number of spaces)
+# Default: 1
+#pad_amount = 1
+
+# Padding side: "left" or "right"
+# Default: "right"
+#pad_side = "right"
+
+# Message separator (between metadata and message)
+# Default: " "
+#msg_separator = " "
+
+# Arrow character (for structured formatting)
+# Default: "→"
+#arrow_char = "→"
+
+# Color configuration
+# All colors support: black, red, green, yellow, blue, purple, cyan, white
+# Or hex colors: "#ff0000"
+[logging.colors]
+# Timestamp color
+#timestamp = "cyan"
+
+# Log level colors
+#level_trace = "purple"
+#level_debug = "blue"
+#level_info = "green"
+#level_warn = "yellow"
+#level_error = "red"
+
+# Caller location color
+#caller = "cyan"
+
+# Message color
+#message = "white"
+
+# Key-value pair colors
+#key = "cyan"
+#value = "white"
+#separator = "white"
+"###
 }
 
 /// Create default config file if it doesn't exist.
@@ -172,6 +274,8 @@ mod tests {
         let config = Config::default();
         assert!(!config.database_path.as_os_str().is_empty());
         assert!(config.acoustid_api_key.is_none());
+        assert_eq!(config.logging.level(), twyg::LogLevel::Info);
+        assert!(config.logging.coloured());
     }
 
     #[test]

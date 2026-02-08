@@ -90,7 +90,7 @@ impl ScanStage {
                 continue;
             }
 
-            tracing::debug!("Scanning: {}", path.display());
+            log::debug!("Scanning: {}", path.display());
 
             // Extract format and metadata
             let format = path
@@ -106,7 +106,7 @@ impl ScanStage {
             let tags = match Self::extract_tags(path) {
                 Ok(t) => t,
                 Err(e) => {
-                    tracing::warn!("Failed to extract tags from {}: {}", path.display(), e);
+                    log::warn!("Failed to extract tags from {}: {}", path.display(), e);
                     TagData::default()
                 }
             };
@@ -146,7 +146,7 @@ impl Stage for ScanStage {
         _item: &dyn treadle::WorkItem,
         _context: &mut StageContext,
     ) -> treadle::Result<StageOutcome> {
-        tracing::info!("Starting scan of {}", self.music_dir.display());
+        log::info!("Starting scan of {}", self.music_dir.display());
 
         let db = Database::open(&self.db_path).map_err(|e| {
             treadle::TreadleError::StageExecution(format!("Failed to open database: {e}"))
@@ -154,7 +154,7 @@ impl Stage for ScanStage {
 
         match self.scan_directory(&db) {
             Ok(count) => {
-                tracing::info!("Scan complete: {} files processed", count);
+                log::info!("Scan complete: {} files processed", count);
                 Ok(StageOutcome::Complete)
             }
             Err(e) => Err(treadle::TreadleError::StageExecution(format!(

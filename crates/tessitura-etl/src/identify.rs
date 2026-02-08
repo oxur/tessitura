@@ -45,18 +45,18 @@ impl IdentifyStage {
             db.list_unidentified_items()?
         };
 
-        tracing::info!("Found {} unidentified items", unidentified.len());
+        log::info!("Found {} unidentified items", unidentified.len());
 
         let mut identified_count = 0;
 
         for item in unidentified {
-            tracing::debug!("Identifying: {}", item.file_path.display());
+            log::debug!("Identifying: {}", item.file_path.display());
 
             // TODO: Try fingerprint matching if available
             if let Some(ref _acoustid) = self.acoustid {
                 if let Some(ref fingerprint) = item.fingerprint {
                     if let Some(duration) = item.duration_secs {
-                        tracing::debug!(
+                        log::debug!(
                             "Fingerprint available for {}, but matching not yet implemented",
                             item.file_path.display()
                         );
@@ -69,7 +69,7 @@ impl IdentifyStage {
 
             // TODO: Fall back to metadata-based matching
             // For now, we'll just log that the item needs identification
-            tracing::debug!(
+            log::debug!(
                 "Metadata matching not yet implemented for {}",
                 item.file_path.display()
             );
@@ -98,11 +98,11 @@ impl Stage for IdentifyStage {
         _item: &dyn treadle::WorkItem,
         _context: &mut StageContext,
     ) -> treadle::Result<StageOutcome> {
-        tracing::info!("Starting identification");
+        log::info!("Starting identification");
 
         match self.identify_items().await {
             Ok(count) => {
-                tracing::info!("Identification complete: {} items processed", count);
+                log::info!("Identification complete: {} items processed", count);
                 Ok(StageOutcome::Complete)
             }
             Err(e) => Err(treadle::TreadleError::StageExecution(format!(

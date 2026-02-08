@@ -17,6 +17,9 @@ pub fn show_config() -> Result<()> {
     println!("  acoustid_api_key: {}",
         config.acoustid_api_key.as_deref().unwrap_or("<not set>"));
     println!("  database_path: {}", config.database_path.display());
+    println!("  logging.level: {:?}", config.logging.level());
+    println!("  logging.coloured: {}", config.logging.coloured());
+    println!("  logging.output: {:?}", config.logging.output());
 
     println!("\nPriority: CLI args > ENV vars (TESS_*) > Config file > Defaults");
 

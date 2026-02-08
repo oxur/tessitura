@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use tessitura_etl::{build_pipeline, MusicFile};
 
 pub async fn run_scan(music_dir: PathBuf, db_path: PathBuf) -> Result<()> {
-    tracing::info!("Starting scan of {}", music_dir.display());
+    log::info!("Starting scan of {}", music_dir.display());
 
     // Build the pipeline (just scan stage for now)
     let workflow = build_pipeline(music_dir.clone(), db_path.clone(), None)?;

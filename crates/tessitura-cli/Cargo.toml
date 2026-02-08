@@ -22,8 +22,8 @@ tessitura-search = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+log = { workspace = true }
+twyg = { workspace = true }
 treadle = { workspace = true }
 dirs = { workspace = true }
 
