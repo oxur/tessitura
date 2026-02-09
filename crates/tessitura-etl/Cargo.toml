@@ -25,6 +25,7 @@ dirs = { workspace = true }
 confyg = { workspace = true }
 uuid = { workspace = true }
 async-trait = "0.1"
+regex = "1"
 
 [dev-dependencies]
 tempfile = { workspace = true }

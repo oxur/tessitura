@@ -397,6 +397,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::items_after_statements)] // TestItem defined in test scope
     async fn test_enrich_stage_fan_out() {
         let config = test_config();
         let stage = EnrichStage::new(&config, PathBuf::from("/tmp/test.db"));
@@ -431,6 +432,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::items_after_statements)] // TestItem defined in test scope
     async fn test_enrich_stage_unknown_subtask() {
         let config = test_config();
         let stage = EnrichStage::new(&config, PathBuf::from("/tmp/test.db"));

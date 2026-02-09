@@ -184,6 +184,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::items_after_statements)] // TestItem defined in test scope
     async fn test_harmonize_empty_assertions() {
         let rules = sample_rules();
         let db_dir = tempfile::TempDir::new().unwrap();
@@ -213,6 +214,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::items_after_statements)] // TestItem defined in test scope
     async fn test_harmonize_with_assertions() {
         let rules = sample_rules();
         let db_dir = tempfile::TempDir::new().unwrap();
@@ -278,6 +280,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::items_after_statements)] // TestItem defined in test scope
     async fn test_harmonize_stores_proposals_in_context() {
         let rules = sample_rules();
         let db_dir = tempfile::TempDir::new().unwrap();
