@@ -27,9 +27,21 @@ pub async fn run_fingerprint(db_path: PathBuf, force: bool) -> Result<()> {
 
     let mut success_count = 0;
     let mut failure_count = 0;
+    let mut skipped_count = 0;
 
     for (idx, item) in items.iter().enumerate() {
         let progress = format!("[{}/{}]", idx + 1, items.len());
+
+        // Skip 0-byte files (Dropbox placeholders, corrupted files, etc.)
+        if item.file_size == 0 {
+            log::debug!(
+                "{} Skipping 0-byte file: {}",
+                progress,
+                item.file_path.display()
+            );
+            skipped_count += 1;
+            continue;
+        }
 
         log::debug!(
             "{} Fingerprinting: {}",
@@ -85,7 +97,15 @@ pub async fn run_fingerprint(db_path: PathBuf, force: bool) -> Result<()> {
     println!("\r"); // Clear progress line
     println!("\n✓ Fingerprinting complete");
     println!("  Successful: {}", success_count);
+    println!("  Skipped:    {} (0-byte files)", skipped_count);
     println!("  Failed:     {}", failure_count);
+
+    if skipped_count > 0 {
+        println!(
+            "\nNote: {} files were skipped (0 bytes - likely Dropbox placeholders or corrupted).",
+            skipped_count
+        );
+    }
 
     if failure_count > 0 {
         println!(
