@@ -2,11 +2,14 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
 
+use crate::enrich::resilience::RateLimiter;
+
 /// AcoustID API client.
 #[derive(Debug, Clone)]
 pub struct AcoustIdClient {
     http: Client,
     api_key: String,
+    rate_limiter: RateLimiter,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,7 +46,7 @@ pub struct AcoustIdRelease {
 }
 
 impl AcoustIdClient {
-    /// Create a new AcoustID client.
+    /// Create a new AcoustID client with 3 req/sec rate limiting.
     ///
     /// # Errors
     /// Returns an error if the HTTP client cannot be created.
@@ -56,10 +59,11 @@ impl AcoustIdClient {
         Ok(Self {
             http,
             api_key: api_key.into(),
+            rate_limiter: RateLimiter::new(3), // 3 req/sec
         })
     }
 
-    /// Look up a fingerprint.
+    /// Look up a fingerprint via AcoustID API (rate-limited at 3 req/sec).
     ///
     /// # Errors
     /// Returns an error if the API request fails or the response cannot be parsed.
@@ -68,6 +72,9 @@ impl AcoustIdClient {
         fingerprint: &str,
         duration: f64,
     ) -> Result<AcoustIdResponse, Box<dyn std::error::Error + Send + Sync>> {
+        // Rate limit: 3 requests per second
+        self.rate_limiter.acquire().await;
+
         let url = "https://api.acoustid.org/v2/lookup";
 
         let response = self

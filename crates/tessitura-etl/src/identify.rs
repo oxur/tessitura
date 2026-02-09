@@ -14,7 +14,6 @@ pub struct IdentifyStage {
     musicbrainz: MusicBrainzClient,
     db_path: PathBuf,
     mb_rate_limiter: RateLimiter,
-    acoustid_rate_limiter: RateLimiter,
 }
 
 impl IdentifyStage {
@@ -39,7 +38,6 @@ impl IdentifyStage {
             musicbrainz,
             db_path,
             mb_rate_limiter: RateLimiter::new(1), // 1 req/sec for MusicBrainz
-            acoustid_rate_limiter: RateLimiter::new(1), // 1 req/sec for AcoustID
         })
     }
 
@@ -93,8 +91,6 @@ impl IdentifyStage {
                         "Attempting AcoustID fingerprint match for {}",
                         item.file_path.display()
                     );
-
-                    self.acoustid_rate_limiter.acquire().await;
 
                     match acoustid.lookup(fingerprint, duration).await {
                         Ok(response) => {
