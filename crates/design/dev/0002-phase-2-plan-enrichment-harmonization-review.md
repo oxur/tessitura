@@ -2,7 +2,7 @@
 
 ## Context
 
-Phase 1 is complete: the FRBR data model, SQLite schema, scan stage, identify stage, and CLI are working with 43 tests passing. The project plan (v1.1) defines Phase 2 as milestones 2.1–2.15 covering: fan-out enrichment from 5 external sources (MusicBrainz, Wikidata, Last.fm, LCGFT/LCMPT, Discogs), a mapping rules engine for harmonization, a ratatui-based review TUI, and audio fingerprinting for improved identification.
+Phase 1 is complete: the FRBR data model, SQLite schema, scan stage, identify stage, and CLI are working with 43 tests passing. The project plan (v1.1) defines Phase 2 as milestones 2.1–2.16 covering: fan-out enrichment from 5 external sources (MusicBrainz, Wikidata, Last.fm, LCGFT/LCMPT, Discogs), a mapping rules engine for harmonization, a ratatui-based review TUI, and audio fingerprinting for improved identification.
 
 This plan will be written to `crates/design/dev/0002-phase-2-implementation-plan-enrichment-harmonization-review.md` and copied to `./workbench/`.
 
@@ -32,11 +32,12 @@ working with real data. The user can review proposed metadata and approve/edit.
 13. [Milestone 2.12: Chromaprint Fingerprinting in Scan](#milestone-212-chromaprint-fingerprinting-in-scan)
 14. [Milestone 2.13: AcoustID Lookup in Identify](#milestone-213-acoustid-lookup-in-identify)
 15. [Milestone 2.14: Backfill Command for Existing Items](#milestone-214-backfill-command-for-existing-items)
-16. [Milestone 2.15: Mapping Rules Iteration](#milestone-215-mapping-rules-iteration)
-17. [Appendix A: New Dependency Checklist](#appendix-a-new-dependency-checklist)
-14. [Appendix B: External API Quick Reference](#appendix-b-external-api-quick-reference)
-15. [Appendix C: Mapping Rules TOML Format](#appendix-c-mapping-rules-toml-format)
-16. [Appendix D: New File Inventory](#appendix-d-new-file-inventory)
+16. [Milestone 2.15: Unified Process Command](#milestone-215-unified-process-command)
+17. [Milestone 2.16: Mapping Rules Iteration](#milestone-216-mapping-rules-iteration)
+18. [Appendix A: New Dependency Checklist](#appendix-a-new-dependency-checklist)
+19. [Appendix B: External API Quick Reference](#appendix-b-external-api-quick-reference)
+20. [Appendix C: Mapping Rules TOML Format](#appendix-c-mapping-rules-toml-format)
+21. [Appendix D: New File Inventory](#appendix-d-new-file-inventory)
 
 ---
 
@@ -1585,6 +1586,7 @@ fn resample_simple(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
 #### 2.11.3: Add error handling for decode failures
 
 Gracefully handle files that fail to decode:
+
 - Log the error with file path
 - Mark the item with `fingerprint = NULL`
 - Continue processing other files
@@ -1592,11 +1594,13 @@ Gracefully handle files that fail to decode:
 #### 2.11.4: Add unit tests with fixture audio files
 
 Create short test audio files (1-2 second clips) in multiple formats:
+
 - `tests/fixtures/test.flac`
 - `tests/fixtures/test.mp3`
 - `tests/fixtures/test.ogg`
 
 Test that:
+
 - Each format decodes successfully
 - Mono and stereo files both work
 - Sample rate conversion works
@@ -2096,7 +2100,339 @@ Fingerprinting 7415 items... (estimated: 5h 12m)
 
 ---
 
-## Milestone 2.15: Mapping Rules Iteration
+## Milestone 2.15: Unified Process Command
+
+### Goal
+
+Create a single `tessitura process` command that orchestrates the complete metadata processing pipeline from start to finish. This command runs all five required steps in sequence: Scan → Fingerprint → Identify → Enrich → Harmonize, stopping on failure with clear error reporting and supporting resume capability.
+
+This addresses a critical usability gap: users currently must understand and manually execute five separate commands in the correct order, with proper error checking between each step. The `process` command provides a single entry point for the most common workflow.
+
+### Where
+
+- `crates/tessitura-cli/src/commands/process.rs` — new command implementation
+- `crates/tessitura-cli/src/commands/mod.rs` — add process module
+- `crates/tessitura-cli/src/main.rs` — add Process to Commands enum
+
+### Dependencies
+
+Milestone 2.10 (full pipeline wiring)
+
+### Steps
+
+#### 2.15.1: Create the process command module
+
+Create `crates/tessitura-cli/src/commands/process.rs`:
+
+```rust
+use anyhow::{Context, Result};
+use std::path::PathBuf;
+use tessitura_core::schema::Database;
+use tessitura_etl::{build_full_pipeline, Config, MusicFile};
+
+/// Orchestrate the complete processing pipeline.
+///
+/// Steps:
+/// 1. Scan - discover audio files and extract metadata
+/// 2. Fingerprint - generate acoustic fingerprints
+/// 3. Identify - match to MusicBrainz recordings
+/// 4. Enrich - fetch metadata from external sources
+/// 5. Harmonize - apply mapping rules and resolve conflicts
+pub async fn run_process(
+    music_dir: PathBuf,
+    db_path: PathBuf,
+    config: &Config,
+    resume: bool,
+) -> Result<()> {
+    println!("\n🎵 Tessitura Full Processing Pipeline\n");
+    println!("  Music directory: {}", music_dir.display());
+    println!("  Database: {}", db_path.display());
+    println!();
+
+    // Track which steps have been completed
+    let mut completed_steps: Vec<&str> = Vec::new();
+
+    // Step 1: Scan (unless resuming and already complete)
+    if !resume || should_run_scan(&db_path)? {
+        println!("📁 Step 1/5: Scanning music directory...");
+        super::run_scan(music_dir.clone(), db_path.clone())
+            .await
+            .context("Scan step failed")?;
+        completed_steps.push("scan");
+        println!("  ✓ Scan complete\n");
+    } else {
+        println!("📁 Step 1/5: Scan (skipped - already complete)\n");
+    }
+
+    // Step 2: Fingerprint (unless resuming and already complete)
+    if !resume || should_run_fingerprint(&db_path)? {
+        println!("🎵 Step 2/5: Generating acoustic fingerprints...");
+        super::run_fingerprint(db_path.clone(), false)
+            .await
+            .context("Fingerprint step failed")?;
+        completed_steps.push("fingerprint");
+        println!("  ✓ Fingerprint complete\n");
+    } else {
+        println!("🎵 Step 2/5: Fingerprint (skipped - already complete)\n");
+    }
+
+    // Step 3: Identify (unless resuming and already complete)
+    if !resume || should_run_identify(&db_path)? {
+        println!("🔍 Step 3/5: Identifying recordings...");
+        super::run_identify(db_path.clone(), config.acoustid_api_key.clone())
+            .await
+            .context("Identify step failed")?;
+        completed_steps.push("identify");
+        println!("  ✓ Identify complete\n");
+    } else {
+        println!("🔍 Step 3/5: Identify (skipped - already complete)\n");
+    }
+
+    // Steps 4-5: Build and run the full treadle pipeline
+    // (enrich + harmonize are treadle stages)
+    println!("📚 Step 4/5: Enriching metadata from external sources...");
+    println!("⚖️  Step 5/5: Harmonizing and resolving conflicts...");
+
+    let workflow = build_full_pipeline(music_dir.clone(), db_path.clone(), config)
+        .context("Failed to build pipeline")?;
+
+    // Create state store
+    let parent = db_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Database path has no parent directory"))?;
+    let state_path = parent.join("pipeline.db");
+    let mut store = treadle::SqliteStateStore::open(&state_path)
+        .await
+        .context("Failed to open pipeline state store")?;
+
+    // Create work item
+    let work_item = MusicFile::new("process-job", music_dir);
+
+    // Subscribe to events for progress display
+    let mut events = workflow.subscribe();
+    tokio::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            match event {
+                treadle::WorkflowEvent::StageStarted { stage, .. } => {
+                    println!("  ⏳ [{stage}] Starting...");
+                }
+                treadle::WorkflowEvent::StageCompleted { stage, .. } => {
+                    println!("  ✓ [{stage}] Complete");
+                }
+                treadle::WorkflowEvent::StageFailed { stage, error, .. } => {
+                    eprintln!("  ✗ [{stage}] FAILED: {error}");
+                }
+                treadle::WorkflowEvent::NeedsReview { stage, .. } => {
+                    println!("  ⏸  [{stage}] Awaiting review");
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // Execute the workflow
+    workflow
+        .advance(&work_item, &mut store)
+        .await
+        .context("Pipeline execution failed")?;
+
+    println!("\n✓ Full processing pipeline complete!");
+    println!("\nNext steps:");
+    println!("  - Run 'tessitura review' to review and approve proposed metadata");
+    println!("  - Run 'tessitura status' to see pipeline status");
+
+    Ok(())
+}
+
+/// Check if scan should run (no items in database).
+fn should_run_scan(db_path: &PathBuf) -> Result<bool> {
+    if !db_path.exists() {
+        return Ok(true);
+    }
+    let db = Database::open(db_path)?;
+    let items = db.list_all_items()?;
+    Ok(items.is_empty())
+}
+
+/// Check if fingerprint should run (items exist without fingerprints).
+fn should_run_fingerprint(db_path: &PathBuf) -> Result<bool> {
+    let db = Database::open(db_path)?;
+    let items = db.list_items_without_fingerprints()?;
+    Ok(!items.is_empty())
+}
+
+/// Check if identify should run (unidentified items exist).
+fn should_run_identify(db_path: &PathBuf) -> Result<bool> {
+    let db = Database::open(db_path)?;
+    let items = db.list_unidentified_items()?;
+    Ok(!items.is_empty())
+}
+```
+
+#### 2.15.2: Add process command to CLI
+
+Add to `crates/tessitura-cli/src/commands/mod.rs`:
+
+```rust
+pub mod process;
+pub use process::run_process;
+```
+
+Add to `Commands` enum in `crates/tessitura-cli/src/main.rs`:
+
+```rust
+/// Process a music library through the full pipeline
+#[command(
+    long_about = "Orchestrates the complete metadata processing pipeline from start to finish:
+
+  1. Scan - Discover audio files and extract embedded metadata
+  2. Fingerprint - Generate acoustic fingerprints for identification
+  3. Identify - Match recordings to MusicBrainz database
+  4. Enrich - Fetch metadata from external sources (Wikidata, Last.fm, Discogs)
+  5. Harmonize - Apply mapping rules and resolve conflicts
+
+This command stops on failure and reports which step failed. Use --resume to
+skip already-completed steps when restarting after a failure.
+
+The process command is the recommended way to initialize a new music library
+in Tessitura. After completion, use 'tessitura review' to approve the
+proposed metadata changes.
+
+Output:
+  - Progress indicators for each step
+  - Clear error messages indicating which step failed
+  - Summary statistics at completion"
+)]
+Process {
+    /// Path to the music directory
+    path: PathBuf,
+
+    /// Resume from last successful step (skip completed steps)
+    #[arg(long, short, default_value_t = false)]
+    resume: bool,
+},
+```
+
+Wire in `main()`:
+
+```rust
+Commands::Process { path, resume } => {
+    let config = Config::load()?;
+    let db_path = cli.db.unwrap_or_else(default_db_path);
+    commands::run_process(path, db_path, &config, resume).await?;
+}
+```
+
+#### 2.15.3: Update status command to show pipeline progress
+
+Enhance `show_status()` to display which steps have been completed:
+
+```rust
+pub fn show_status(db_path: PathBuf, _filter: Option<String>) -> Result<()> {
+    let db = Database::open(&db_path)?;
+
+    // Get statistics for each pipeline step
+    let total_items = db.list_all_items()?.len();
+    let items_without_fingerprints = db.list_items_without_fingerprints()?.len();
+    let unidentified_items = db.list_unidentified_items()?.len();
+    let identified_items = db.list_identified_items()?.len();
+
+    println!("\n📊 Tessitura Status\n");
+    println!("  Database: {}", db_path.display());
+    println!();
+    println!("Pipeline Progress:");
+    println!("  ✓ Scan:        {} items", total_items);
+    println!(
+        "  {} Fingerprint: {} items {}",
+        if items_without_fingerprints == 0 { "✓" } else { "⏳" },
+        total_items - items_without_fingerprints,
+        if items_without_fingerprints > 0 {
+            format!("({} pending)", items_without_fingerprints)
+        } else {
+            String::new()
+        }
+    );
+    println!(
+        "  {} Identify:    {} items {}",
+        if unidentified_items == 0 { "✓" } else { "⏳" },
+        identified_items,
+        if unidentified_items > 0 {
+            format!("({} pending)", unidentified_items)
+        } else {
+            String::new()
+        }
+    );
+    // TODO: Add enrich and harmonize status when those stages track completion
+
+    if unidentified_items > 0 {
+        println!("\nNext step: Run 'tessitura process --resume' to continue processing");
+    } else if identified_items > 0 {
+        println!("\nNext step: Run 'tessitura review' to review proposed metadata");
+    }
+
+    Ok(())
+}
+```
+
+#### 2.15.4: Add error context and recovery guidance
+
+Ensure each step failure includes:
+
+- Which step failed
+- The error details
+- How to resume (use `--resume` flag)
+- How to run just that step individually if needed
+
+#### 2.15.5: Integration test
+
+Create `tests/integration/test_process_command.rs`:
+
+```rust
+#[tokio::test]
+async fn test_process_command_full_pipeline() {
+    // Setup: temp directory with test audio files
+    // Mock external APIs (MusicBrainz, Wikidata, etc.)
+    // Run: process command with test music dir
+    // Verify: each step completes, database has expected data
+    // Test: --resume flag skips already-completed steps
+}
+
+#[tokio::test]
+async fn test_process_command_failure_recovery() {
+    // Setup: temp directory, mock API that fails on 3rd call
+    // Run: process command (should fail at identify)
+    // Verify: error message indicates identify step failed
+    // Run: process command with --resume
+    // Verify: skips scan and fingerprint, retries identify
+}
+```
+
+### Acceptance Criteria
+
+- [ ] `tessitura process <dir>` runs all 5 steps in sequence
+- [ ] Process stops on first failure with clear error message indicating which step failed
+- [ ] `--resume` flag skips already-completed steps
+- [ ] Status command shows progress through pipeline steps
+- [ ] Each step's output clearly indicates success/failure
+- [ ] Failed steps can be retried without re-running successful steps
+- [ ] Documentation in `--help` explains the pipeline flow
+- [ ] Integration tests cover happy path and failure recovery
+- [ ] Process command properly handles:
+  - Empty directory (no audio files)
+  - Already-processed library (all steps complete)
+  - Partial completion (some steps done, resume works)
+  - Missing API keys (clear error, suggests configuration)
+
+### Notes
+
+- Fingerprint is intentionally kept separate from the treadle workflow for now, as it's a batch operation that doesn't fit the treadle stage model
+- The `--resume` flag uses simple database queries to check completion rather than complex state tracking
+- Future enhancement: add `--from-step` flag to start from a specific step
+- Future enhancement: add `--to-step` flag to stop at a specific step (e.g., process up to identify only)
+
+---
+
+## Milestone 2.16: Mapping Rules Iteration
 
 ### Goal
 
@@ -2115,7 +2451,7 @@ Milestone 2.10
 
 ### Steps
 
-#### 2.15.1: Process classical test albums
+#### 2.16.1: Process classical test albums
 
 Run the Bartók String Quartets through the pipeline. Verify:
 
@@ -2128,19 +2464,19 @@ Run the Bartók String Quartets through the pipeline. Verify:
 
 Refine genre_rules and period_rules as needed.
 
-#### 2.15.2: Process jazz test albums
+#### 2.16.2: Process jazz test albums
 
 Run Kind of Blue. Verify jazz-specific handling, artist roles.
 
-#### 2.15.3: Process electronic test albums
+#### 2.16.3: Process electronic test albums
 
 Run Boards of Canada. Verify electronic subgenre handling with Last.fm tags.
 
-#### 2.15.4: Process prog test albums
+#### 2.16.4: Process prog test albums
 
 Run King Crimson. Verify progressive rock classification.
 
-#### 2.15.5: Document emerged patterns
+#### 2.16.5: Document emerged patterns
 
 Write `docs/mapping-patterns.md` documenting:
 
@@ -2192,6 +2528,7 @@ See `config/taxonomy.toml`. Key sections:
 - `[[instrument_rules]]` — match_any, output_instruments, output_lcmpt_labels
 
 Example:
+
 ```toml
 [source_priority]
 embedded_tag = 1
@@ -2227,6 +2564,7 @@ year_range = [1900, 1999]
 ## Appendix D: New File Inventory
 
 ### tessitura-core
+
 ```
 src/taxonomy/rules.rs          — MappingRules, GenreRule, PeriodRule, InstrumentRule
 src/taxonomy/genre.rs          — ADD LcgftTerm type
@@ -2236,6 +2574,7 @@ src/schema/db.rs               — Complete todo!() stubs, add vocabulary CRUD
 ```
 
 ### tessitura-etl
+
 ```
 src/error.rs                   — EnrichError, EnrichResult
 src/enrich/mod.rs              — Module declarations
@@ -2255,6 +2594,7 @@ src/identify.rs                — UPDATE: fingerprint-first strategy
 ```
 
 ### tessitura-cli
+
 ```
 src/tui/mod.rs                 — App state, event loop, run_tui()
 src/tui/album_list.rs          — Album list view renderer
@@ -2266,6 +2606,7 @@ src/commands/fingerprint.rs    — run_fingerprint() (backfill command)
 ```
 
 ### Config / Data
+
 ```
 config/taxonomy.toml           — Default mapping rules
 config/lcgft-snapshot.json     — LCGFT vocabulary snapshot
@@ -2275,6 +2616,7 @@ config/lcmpt-snapshot.json     — LCMPT vocabulary snapshot
 ## Verification
 
 ### Build and Test
+
 ```bash
 cargo build --workspace
 cargo test --workspace
@@ -2282,6 +2624,7 @@ make check  # build + lint + test
 ```
 
 ### Manual Testing (per milestone)
+
 1. **2.0**: `cargo test -p tessitura-core` — verify CRUD round-trips
 2. **2.1-2.5**: Mock API tests for each enrichment source
 3. **2.6**: `tessitura enrich` with mocked APIs → assertions in DB
@@ -2293,9 +2636,10 @@ make check  # build + lint + test
 9. **2.12**: Fingerprint generation in scan → stored in database
 10. **2.13**: AcoustID lookup with mocked API → correct MusicBrainz IDs
 11. **2.14**: `tessitura fingerprint` backfills existing items
-12. **2.15**: Process real albums, refine rules, verify output quality
+12. **2.16**: Process real albums, refine rules, verify output quality
 
 ### Environment Variables for Testing
+
 ```bash
 export ACOUSTID_API_KEY="..."
 export TESS_LASTFM_API_KEY="..."
