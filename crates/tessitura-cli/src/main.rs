@@ -12,7 +12,7 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Path to the database (default: ~/.local/share/tessitura/tessitura.db)
+    /// Path to the database (default: ~/.local/share/tessitura/library.db)
     #[arg(long, global = true)]
     db: Option<PathBuf>,
 }

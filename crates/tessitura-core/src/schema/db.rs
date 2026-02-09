@@ -222,6 +222,25 @@ impl Database {
         Ok(items.pop())
     }
 
+    /// Get a single item by its file path.
+    pub fn get_item_by_path(&self, path: &std::path::Path) -> Result<Option<Item>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, expression_id, manifestation_id, file_path, format,
+                    file_size, file_mtime, file_hash, fingerprint, fingerprint_score,
+                    tag_title, tag_artist, tag_album, tag_album_artist,
+                    tag_track_number, tag_disc_number, tag_year, tag_genre,
+                    duration_secs, created_at, updated_at
+             FROM items
+             WHERE file_path = ?1",
+        )?;
+
+        let mut items = stmt
+            .query_map([path.to_string_lossy().as_ref()], Self::row_to_item)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        Ok(items.pop())
+    }
+
     /// List all identified items (those that have an `expression_id`).
     pub fn list_identified_items(&self) -> Result<Vec<Item>> {
         let mut stmt = self.conn.prepare(

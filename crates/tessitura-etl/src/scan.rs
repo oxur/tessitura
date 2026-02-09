@@ -125,32 +125,72 @@ impl ScanStage {
             item.tag_genre = tags.genre;
             item.duration_secs = tags.duration_secs;
 
-            // Generate acoustic fingerprint
-            match generate_fingerprint(path) {
-                Ok((fingerprint, duration)) => {
-                    log::debug!(
-                        "  Fingerprint: {} ({}s)",
-                        &fingerprint[..20.min(fingerprint.len())],
-                        duration
-                    );
-                    item.fingerprint = Some(fingerprint);
-                    // Update duration if we got a more accurate one from decoding
-                    if item.duration_secs.is_none() {
-                        item.duration_secs = Some(duration);
+            // Check if this item already exists in the database
+            let existing_item = db.get_item_by_path(path)?;
+
+            // Determine if we need to update or insert
+            let needs_update = if let Some(ref existing) = existing_item {
+                // File has changed if mtime or size differ
+                existing.file_mtime != file_mtime || existing.file_size != file_size
+            } else {
+                false
+            };
+
+            // Generate fingerprint if:
+            // - This is a new item, OR
+            // - This is an existing item that has changed (updated file), OR
+            // - This is an existing item without a fingerprint (was 0-byte, now has content)
+            let should_fingerprint = existing_item.is_none()
+                || needs_update
+                || (existing_item.is_some() && existing_item.as_ref().unwrap().fingerprint.is_none());
+
+            if should_fingerprint && file_size > 0 {
+                match generate_fingerprint(path) {
+                    Ok((fingerprint, duration)) => {
+                        log::debug!(
+                            "  Fingerprint: {} ({}s)",
+                            &fingerprint[..20.min(fingerprint.len())],
+                            duration
+                        );
+                        item.fingerprint = Some(fingerprint);
+                        // Update duration if we got a more accurate one from decoding
+                        if item.duration_secs.is_none() {
+                            item.duration_secs = Some(duration);
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "  Failed to generate fingerprint for {}: {}",
+                            path.display(),
+                            e
+                        );
+                        item.fingerprint = None;
                     }
                 }
-                Err(e) => {
-                    log::warn!(
-                        "  Failed to generate fingerprint for {}: {}",
-                        path.display(),
-                        e
-                    );
-                    item.fingerprint = None;
-                }
+            } else if let Some(ref existing) = existing_item {
+                // Preserve existing fingerprint if we're not re-fingerprinting
+                item.fingerprint = existing.fingerprint.clone();
             }
 
             // Insert or update in database
-            db.insert_item(&item)?;
+            if let Some(existing) = existing_item {
+                // Preserve the existing ID and timestamps
+                item.id = existing.id;
+                item.created_at = existing.created_at;
+
+                // Preserve identification data if not changed
+                if !needs_update {
+                    item.expression_id = existing.expression_id;
+                    item.manifestation_id = existing.manifestation_id;
+                    item.fingerprint_score = existing.fingerprint_score;
+                }
+
+                db.update_item(&item)?;
+                log::debug!("  Updated existing item");
+            } else {
+                db.insert_item(&item)?;
+                log::debug!("  Inserted new item");
+            }
             count += 1;
         }
 

@@ -68,7 +68,7 @@ All configuration can be set via environment variables with the `TESS_` prefix:
 export TESS_ACOUSTID_API_KEY="your-api-key-here"
 
 # Database path
-export TESS_DATABASE_PATH="/custom/path/tessitura.db"
+export TESS_DATABASE_PATH="/custom/path/library.db"
 ```
 
 ### Naming Convention
@@ -123,11 +123,11 @@ Path to the SQLite database file where tessitura stores all catalog data.
 - CLI: `--db /path/to/db`
 - ENV: `TESS_DATABASE_PATH`
 - Config: `database_path = "/path/to/db"`
-- Default: `~/.local/share/tessitura/tessitura.db`
+- Default: `~/.local/share/tessitura/library.db`
 
 **Example**:
 ```toml
-database_path = "/media/music-archive/tessitura.db"
+database_path = "/media/music-archive/library.db"
 ```
 
 ## Verification
@@ -137,7 +137,7 @@ To verify your configuration is loaded correctly:
 ```bash
 # Check that the database path is used
 tessitura scan --help
-# Shows: Path to the database (default: ~/.local/share/tessitura/tessitura.db)
+# Shows: Path to the database (default: ~/.local/share/tessitura/library.db)
 
 # Run with environment variable
 TESS_ACOUSTID_API_KEY=test ./bin/tessitura identify

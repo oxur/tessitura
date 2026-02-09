@@ -48,7 +48,7 @@ pub struct Config {
     /// - CLI: --db /path/to/db
     /// - ENV: TESS_DATABASE_PATH
     /// - Config: database_path = "/path/to/db"
-    /// - Default: ~/.local/share/tessitura/tessitura.db
+    /// - Default: ~/.local/share/tessitura/library.db
     #[serde(default = "default_db_path")]
     pub database_path: PathBuf,
 
@@ -133,12 +133,12 @@ impl Config {
 
 /// Get the default database path.
 ///
-/// Returns: ~/.local/share/tessitura/tessitura.db (or platform equivalent)
+/// Returns: ~/.local/share/tessitura/library.db (or platform equivalent)
 fn default_db_path() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("tessitura")
-        .join("tessitura.db")
+        .join("library.db")
 }
 
 /// Get the default rules path.
@@ -234,7 +234,7 @@ acoustid_api_key = "your-acoustid-api-key-here"
 # - Environment: TESS_DATABASE_PATH=/custom/path.db
 #
 # Default: Platform-specific data directory
-#database_path = "/path/to/custom/tessitura.db"
+#database_path = "/path/to/custom/library.db"
 
 # Path to the mapping rules TOML file for harmonization
 #
