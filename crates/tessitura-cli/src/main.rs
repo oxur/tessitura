@@ -93,6 +93,7 @@ provenance-tracked assertions in the database."
         pending_only: bool,
     },
     /// Apply mapping rules and resolve conflicts
+    #[command(alias = "harmonise")]
     #[command(
         long_about = "Applies the mapping rules engine to enrichment assertions, normalizing
 raw metadata into canonical genre, form, period, and instrumentation values.
