@@ -18,13 +18,9 @@ pub fn run_harmonize(db_path: PathBuf, rules_path: PathBuf) -> Result<()> {
 
     // Verify rules file exists
     if !rules_path.exists() {
-        println!("Mapping rules file not found: {}", rules_path.display());
-        println!("\nTo get started:");
-        println!(
-            "  1. Copy the default rules: cp config/taxonomy.toml {}",
-            rules_path.display()
-        );
-        println!("  2. Or set a custom path: TESS_RULES_PATH=/path/to/rules.toml");
+        println!("✗ Mapping rules file not found: {}", rules_path.display());
+        println!("\nRun 'tessitura rules init' to create the default rules file.");
+        println!("\nOr set a custom path: TESS_RULES_PATH=/path/to/rules.toml");
         return Ok(());
     }
 

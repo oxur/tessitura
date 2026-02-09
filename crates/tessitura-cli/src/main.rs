@@ -147,6 +147,27 @@ Examples:
         #[command(subcommand)]
         action: VocabAction,
     },
+    /// Manage mapping rules
+    #[command(long_about = "Manage genre, period, and instrumentation mapping rules.
+
+Rules file location:
+  Linux:   ~/.config/tessitura/taxonomy.toml
+  macOS:   ~/Library/Application Support/tessitura/taxonomy.toml
+  Windows: %APPDATA%\\tessitura\\taxonomy.toml
+
+Examples:
+  tessitura rules init                    # Create default rules file
+  tessitura rules path                    # Show rules file location
+  tessitura rules edit                    # Open rules in $EDITOR
+  tessitura rules validate                # Check rules syntax
+
+The rules file defines how raw metadata from enrichment sources
+(MusicBrainz, Wikidata, Last.fm, Discogs) is mapped to controlled
+vocabulary terms for genre, period, and instrumentation.")]
+    Rules {
+        #[command(subcommand)]
+        action: RulesAction,
+    },
     /// Manage configuration
     #[command(long_about = "View and modify tessitura configuration settings.
 
@@ -187,6 +208,18 @@ enum VocabAction {
     },
     /// Show vocabulary statistics
     Stats,
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum RulesAction {
+    /// Initialize rules file with defaults
+    Init,
+    /// Show rules file path
+    Path,
+    /// Open rules file in $EDITOR
+    Edit,
+    /// Validate rules file syntax
+    Validate,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -262,6 +295,20 @@ async fn main() -> Result<()> {
             }
             VocabAction::Stats => {
                 commands::vocab::vocab_stats(config.database_path)?;
+            }
+        },
+        Commands::Rules { action } => match action {
+            RulesAction::Init => {
+                commands::rules::init_rules()?;
+            }
+            RulesAction::Path => {
+                commands::rules::show_path()?;
+            }
+            RulesAction::Edit => {
+                commands::rules::edit_rules()?;
+            }
+            RulesAction::Validate => {
+                commands::rules::validate_rules()?;
             }
         },
         Commands::Config { action } => {

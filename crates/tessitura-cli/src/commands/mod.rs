@@ -3,6 +3,7 @@ pub mod enrich;
 pub mod harmonize;
 pub mod identify;
 pub mod review;
+pub mod rules;
 pub mod scan;
 pub mod status;
 pub mod vocab;
