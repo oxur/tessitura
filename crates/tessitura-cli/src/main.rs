@@ -70,6 +70,28 @@ Output:
   - Final summary of identified vs unidentified items"
     )]
     Identify,
+    /// Generate acoustic fingerprints for items
+    #[command(
+        long_about = "Generates acoustic fingerprints for audio files that don't have them.
+This is useful for backfilling fingerprints after initial scanning, or when
+fingerprinting was disabled during scan.
+
+Process:
+  - Decodes audio to mono PCM at 11025 Hz (Chromaprint standard)
+  - Generates Chromaprint fingerprint
+  - Stores fingerprint in database for later identification
+  - Updates duration if more accurate than tag metadata
+
+By default, only processes items where fingerprint IS NULL.
+Use --force to re-fingerprint all items (useful after algorithm updates).
+
+Rate: Processes one file at a time. Large collections may take time."
+    )]
+    Fingerprint {
+        /// Re-fingerprint all items, not just those without fingerprints
+        #[arg(long, short, default_value_t = false)]
+        force: bool,
+    },
     /// Enrich identified items from external metadata sources
     #[command(
         long_about = "Fetches metadata for identified items from multiple external sources:
@@ -276,6 +298,9 @@ async fn main() -> Result<()> {
         }
         Commands::Identify => {
             commands::run_identify(config.database_path, config.acoustid_api_key).await?;
+        }
+        Commands::Fingerprint { force } => {
+            commands::run_fingerprint(config.database_path, force).await?;
         }
         Commands::Enrich { pending_only } => {
             let db_path = config.database_path.clone();

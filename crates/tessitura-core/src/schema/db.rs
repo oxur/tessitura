@@ -234,6 +234,26 @@ impl Database {
         Ok(items)
     }
 
+    /// List items without fingerprints (for backfill command).
+    pub fn list_items_without_fingerprints(&self) -> Result<Vec<Item>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, expression_id, manifestation_id, file_path, format,
+                    file_size, file_mtime, file_hash, fingerprint, fingerprint_score,
+                    tag_title, tag_artist, tag_album, tag_album_artist,
+                    tag_track_number, tag_disc_number, tag_year, tag_genre,
+                    duration_secs, created_at, updated_at
+             FROM items
+             WHERE fingerprint IS NULL
+             ORDER BY file_path",
+        )?;
+
+        let items = stmt
+            .query_map([], Self::row_to_item)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        Ok(items)
+    }
+
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn row_to_item(row: &rusqlite::Row) -> rusqlite::Result<Item> {
         use crate::model::{AudioFormat, ExpressionId, ItemId, ManifestationId};
