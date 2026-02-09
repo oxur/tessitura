@@ -35,7 +35,6 @@ impl Database {
     }
 
     /// Get a reference to the underlying connection (for advanced queries).
-    #[must_use]
     pub const fn conn(&self) -> &Connection {
         &self.conn
     }
@@ -607,6 +606,9 @@ impl Database {
 
     /// List all expressions, including their performer IDs.
     pub fn list_expressions(&self) -> Result<Vec<Expression>> {
+        use std::collections::HashMap;
+
+        // Query 1: Get all expressions
         let mut stmt = self.conn.prepare(
             "SELECT id, work_id, title, musicbrainz_id, conductor_id,
                     recorded_year, duration_secs, created_at, updated_at
@@ -614,28 +616,46 @@ impl Database {
              ORDER BY title",
         )?;
 
-        let base_expressions = stmt
+        let mut expressions = stmt
             .query_map([], Self::row_to_expression)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
-        let mut expressions = Vec::with_capacity(base_expressions.len());
-        for mut expr in base_expressions {
-            let mut perf_stmt = self.conn.prepare(
-                "SELECT artist_id FROM expression_performers
-                 WHERE expression_id = ?1",
-            )?;
-            let performer_ids = perf_stmt
-                .query_map(rusqlite::params![expr.id.to_string()], |row| {
-                    let id_str: String = row.get(0)?;
-                    uuid::Uuid::parse_str(&id_str)
-                        .map(ArtistId::from_uuid)
-                        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            0, rusqlite::types::Type::Text, Box::new(e)
-                        ))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            expr.performer_ids = performer_ids;
-            expressions.push(expr);
+        // Query 2: Get ALL performers for ALL expressions in one query (fixes N+1)
+        let mut perf_stmt = self.conn.prepare(
+            "SELECT expression_id, artist_id
+             FROM expression_performers
+             ORDER BY expression_id",
+        )?;
+
+        // Build a map: expression_id -> Vec<artist_id>
+        let mut performers_map: HashMap<ExpressionId, Vec<ArtistId>> = HashMap::new();
+        let rows = perf_stmt.query_map([], |row| {
+            let expr_id_str: String = row.get(0)?;
+            let artist_id_str: String = row.get(1)?;
+            Ok((expr_id_str, artist_id_str))
+        })?;
+
+        for row_result in rows {
+            let (expr_id_str, artist_id_str) = row_result?;
+
+            let expr_id = uuid::Uuid::parse_str(&expr_id_str)
+                .map(ExpressionId::from_uuid)
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    0, rusqlite::types::Type::Text, Box::new(e)
+                ))?;
+
+            let artist_id = uuid::Uuid::parse_str(&artist_id_str)
+                .map(ArtistId::from_uuid)
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    1, rusqlite::types::Type::Text, Box::new(e)
+                ))?;
+
+            performers_map.entry(expr_id).or_default().push(artist_id);
+        }
+
+        // Populate performer IDs from the map
+        for expr in &mut expressions {
+            expr.performer_ids = performers_map.remove(&expr.id).unwrap_or_default();
         }
 
         Ok(expressions)
