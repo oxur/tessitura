@@ -81,6 +81,7 @@ impl IdentifyStage {
             log::debug!("Identifying: {}", item.file_path.display());
 
             let mut recording_id: Option<String> = None;
+            let mut fingerprint_score: Option<f64> = None;
 
             // Step 1: Try fingerprint matching if available
             if let Some(ref acoustid) = self.acoustid {
@@ -98,6 +99,7 @@ impl IdentifyStage {
                                 if let Some(recordings) = &result.recordings {
                                     if let Some(recording) = recordings.first() {
                                         recording_id = Some(recording.id.clone());
+                                        fingerprint_score = Some(result.score);
                                         log::info!(
                                             "Fingerprint match found: {} (score: {:.2})",
                                             recording.id,
@@ -176,7 +178,10 @@ impl IdentifyStage {
 
             // Step 3: If we have a recording ID, create FRBR entities
             if let Some(ref mb_recording_id) = recording_id {
-                match self.create_frbr_entities(&item, mb_recording_id).await {
+                match self
+                    .create_frbr_entities(&item, mb_recording_id, fingerprint_score)
+                    .await
+                {
                     Ok(()) => {
                         identified_count += 1;
                         log::info!("Successfully identified: {}", item.file_path.display());
@@ -201,6 +206,7 @@ impl IdentifyStage {
         &self,
         item: &tessitura_core::model::Item,
         recording_id: &str,
+        fingerprint_score: Option<f64>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Fetch recording details from MusicBrainz
         self.mb_rate_limiter.acquire().await;
@@ -336,10 +342,11 @@ impl IdentifyStage {
             None
         };
 
-        // Step 5: Link item to expression and manifestation
+        // Step 5: Link item to expression and manifestation, store fingerprint score
         let mut updated_item = item.clone();
         updated_item.expression_id = Some(expression_id);
         updated_item.manifestation_id = manifestation_id;
+        updated_item.fingerprint_score = fingerprint_score;
         db.update_item(&updated_item)?;
 
         Ok(())
