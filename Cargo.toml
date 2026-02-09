@@ -69,6 +69,35 @@ unused_lifetimes = "warn"
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
+
+# Anti-pattern detection (based on audit findings)
+# AP-09, AP-80: Unwrap/expect in library code
+unwrap_used = "deny"
+expect_used = "warn"
+# AP-72, AP-34: Ignoring errors
+let_underscore_must_use = "deny"
+# AP-57, AP-18, AP-12: Unnecessary cloning
+unnecessary_to_owned = "warn"
+clone_on_ref_ptr = "warn"
+# AP-02: &String, &Vec parameters
+ptr_arg = "warn"
+# AP-13: Collecting then iterating
+needless_collect = "warn"
+# AP-52: String concatenation in loops
+string_add_assign = "warn"
+# AP-75: format! for simple concatenation
+format_push_string = "warn"
+# AP-48: Redundant field names
+redundant_field_names = "warn"
+# Performance: String conversions
+manual_string_new = "warn"
+inefficient_to_string = "warn"
+# Memory: Boxing unnecessarily
+box_collection = "warn"
+# Style: Idiomatic Rust
+match_bool = "warn"
+single_match_else = "warn"
+
 # Allow these common pedantic triggers:
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
