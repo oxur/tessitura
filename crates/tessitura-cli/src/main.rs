@@ -19,6 +19,36 @@ struct Cli {
 
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
+    /// Process a music library through the full pipeline
+    #[command(
+        long_about = "Orchestrates the complete metadata processing pipeline from start to finish:
+
+  1. Scan - Discover audio files and extract embedded metadata
+  2. Fingerprint - Generate acoustic fingerprints for identification
+  3. Identify - Match recordings to MusicBrainz database
+  4. Enrich - Fetch metadata from external sources (Wikidata, Last.fm, Discogs)
+  5. Harmonize - Apply mapping rules and resolve conflicts
+
+This command stops on failure and reports which step failed. Use --resume to
+skip already-completed steps when restarting after a failure.
+
+The process command is the recommended way to initialize a new music library
+in Tessitura. After completion, use 'tessitura review' to approve the
+proposed metadata changes.
+
+Output:
+  - Progress indicators for each step
+  - Clear error messages indicating which step failed
+  - Summary statistics at completion"
+    )]
+    Process {
+        /// Path to the music directory
+        path: PathBuf,
+
+        /// Resume from last successful step (skip completed steps)
+        #[arg(long, short, default_value_t = false)]
+        resume: bool,
+    },
     /// Scan a music directory for audio files
     #[command(
         long_about = "Recursively walks the specified directory to discover audio files and extract
@@ -293,6 +323,10 @@ async fn main() -> Result<()> {
     }
 
     match cli.command {
+        Commands::Process { path, resume } => {
+            let db_path = config.database_path.clone();
+            commands::run_process(path, db_path, &config, resume).await?;
+        }
         Commands::Scan { path } => {
             commands::run_scan(path, config.database_path).await?;
         }
