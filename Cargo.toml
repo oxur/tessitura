@@ -41,6 +41,9 @@ confyg = "0.3"
 toml = "0.8"
 toml_edit = "0.22"
 symphonia = { version = "0.5", features = ["aac", "alac", "flac", "mp3", "vorbis", "wav"] }
+rusty-chromaprint = "0.2"
+base64 = "0.22"
+flate2 = "1"
 
 # TUI
 ratatui = "0.29"

@@ -25,6 +25,9 @@ dirs = { workspace = true }
 confyg = { workspace = true }
 uuid = { workspace = true }
 symphonia = { workspace = true }
+rusty-chromaprint = { workspace = true }
+base64 = { workspace = true }
+flate2 = { workspace = true }
 async-trait = "0.1"
 regex = "1"
 

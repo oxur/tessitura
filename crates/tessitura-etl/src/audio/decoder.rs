@@ -23,7 +23,10 @@ pub fn decode_audio(path: &Path, target_sample_rate: u32) -> Result<DecodedAudio
     // 1. Open the media source
     let file = std::fs::File::open(path)
         .with_context(|| format!("Failed to open audio file: {}", path.display()))?;
-    let mss = MediaSourceStream::new(Box::new(file), symphonia::core::io::MediaSourceStreamOptions::default());
+    let mss = MediaSourceStream::new(
+        Box::new(file),
+        symphonia::core::io::MediaSourceStreamOptions::default(),
+    );
 
     // 2. Probe the format
     let mut hint = Hint::new();

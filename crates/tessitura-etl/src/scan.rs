@@ -6,6 +6,8 @@ use tessitura_core::schema::Database;
 use treadle::{Stage, StageContext, StageOutcome};
 use walkdir::WalkDir;
 
+use crate::audio::generate_fingerprint;
+
 /// Tags extracted from an audio file.
 #[derive(Debug, Default)]
 struct TagData {
@@ -123,8 +125,29 @@ impl ScanStage {
             item.tag_genre = tags.genre;
             item.duration_secs = tags.duration_secs;
 
-            // TODO: Compute fingerprint (stub for now)
-            item.fingerprint = None;
+            // Generate acoustic fingerprint
+            match generate_fingerprint(path) {
+                Ok((fingerprint, duration)) => {
+                    log::debug!(
+                        "  Fingerprint: {} ({}s)",
+                        &fingerprint[..20.min(fingerprint.len())],
+                        duration
+                    );
+                    item.fingerprint = Some(fingerprint);
+                    // Update duration if we got a more accurate one from decoding
+                    if item.duration_secs.is_none() {
+                        item.duration_secs = Some(duration);
+                    }
+                }
+                Err(e) => {
+                    log::warn!(
+                        "  Failed to generate fingerprint for {}: {}",
+                        path.display(),
+                        e
+                    );
+                    item.fingerprint = None;
+                }
+            }
 
             // Insert or update in database
             db.insert_item(&item)?;
