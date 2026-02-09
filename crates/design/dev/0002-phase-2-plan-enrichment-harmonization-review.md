@@ -2,7 +2,7 @@
 
 ## Context
 
-Phase 1 is complete: the FRBR data model, SQLite schema, scan stage, identify stage, and CLI are working with 43 tests passing. The project plan (v1.1) defines Phase 2 as milestones 2.1–2.11 covering: fan-out enrichment from 5 external sources (MusicBrainz, Wikidata, Last.fm, LCGFT/LCMPT, Discogs), a mapping rules engine for harmonization, and a ratatui-based review TUI.
+Phase 1 is complete: the FRBR data model, SQLite schema, scan stage, identify stage, and CLI are working with 43 tests passing. The project plan (v1.1) defines Phase 2 as milestones 2.1–2.15 covering: fan-out enrichment from 5 external sources (MusicBrainz, Wikidata, Last.fm, LCGFT/LCMPT, Discogs), a mapping rules engine for harmonization, a ratatui-based review TUI, and audio fingerprinting for improved identification.
 
 This plan will be written to `crates/design/dev/0002-phase-2-implementation-plan-enrichment-harmonization-review.md` and copied to `./workbench/`.
 
@@ -28,8 +28,12 @@ working with real data. The user can review proposed metadata and approve/edit.
 9. [Milestone 2.8: Harmonize Stage](#milestone-28-harmonize-stage)
 10. [Milestone 2.9: Review TUI](#milestone-29-review-tui)
 11. [Milestone 2.10: Full Pipeline Wiring](#milestone-210-full-pipeline-wiring)
-12. [Milestone 2.11: Mapping Rules Iteration](#milestone-211-mapping-rules-iteration)
-13. [Appendix A: New Dependency Checklist](#appendix-a-new-dependency-checklist)
+12. [Milestone 2.11: Audio Decoding Integration](#milestone-211-audio-decoding-integration)
+13. [Milestone 2.12: Chromaprint Fingerprinting in Scan](#milestone-212-chromaprint-fingerprinting-in-scan)
+14. [Milestone 2.13: AcoustID Lookup in Identify](#milestone-213-acoustid-lookup-in-identify)
+15. [Milestone 2.14: Backfill Command for Existing Items](#milestone-214-backfill-command-for-existing-items)
+16. [Milestone 2.15: Mapping Rules Iteration](#milestone-215-mapping-rules-iteration)
+17. [Appendix A: New Dependency Checklist](#appendix-a-new-dependency-checklist)
 14. [Appendix B: External API Quick Reference](#appendix-b-external-api-quick-reference)
 15. [Appendix C: Mapping Rules TOML Format](#appendix-c-mapping-rules-toml-format)
 16. [Appendix D: New File Inventory](#appendix-d-new-file-inventory)
@@ -1397,7 +1401,702 @@ pipeline from scan through harmonize. Verify database state at each stage.
 
 ---
 
-## Milestone 2.11: Mapping Rules Iteration
+## Milestone 2.11: Audio Decoding Integration
+
+### Goal
+
+Integrate `symphonia` for decoding various audio formats (FLAC, MP3, OGG, M4A, WAV)
+to raw PCM samples. This provides the audio data needed for fingerprinting.
+
+### Where
+
+- `crates/tessitura-etl/src/audio/mod.rs` — audio module
+- `crates/tessitura-etl/src/audio/decoder.rs` — symphonia integration
+- `crates/tessitura-etl/Cargo.toml` — add symphonia dependency
+
+### Dependencies
+
+Phase 1 (scan stage exists)
+
+### Steps
+
+#### 2.11.1: Add symphonia dependency
+
+Add to workspace `Cargo.toml`:
+
+```toml
+symphonia = { version = "0.5", features = ["aac", "alac", "flac", "mp3", "vorbis", "wav"] }
+```
+
+Add to `crates/tessitura-etl/Cargo.toml`:
+
+```toml
+symphonia = { workspace = true }
+```
+
+#### 2.11.2: Create audio decoder module
+
+Create `crates/tessitura-etl/src/audio/decoder.rs`:
+
+```rust
+use anyhow::{Context, Result};
+use std::path::Path;
+use symphonia::core::audio::SampleBuffer;
+use symphonia::core::codecs::DecoderOptions;
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::MediaSourceStream;
+use symphonia::core::meta::MetadataOptions;
+use symphonia::core::probe::Hint;
+
+/// Decoded audio as mono PCM samples at a specific sample rate.
+#[derive(Debug)]
+pub struct DecodedAudio {
+    pub samples: Vec<f32>,
+    pub sample_rate: u32,
+    pub duration_secs: f64,
+}
+
+/// Decode an audio file to mono PCM samples.
+///
+/// Resamples to target_sample_rate (typically 11025 or 16000 Hz for chromaprint).
+/// Converts stereo to mono by averaging channels.
+pub fn decode_audio(path: &Path, target_sample_rate: u32) -> Result<DecodedAudio> {
+    // 1. Open the media source
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("Failed to open audio file: {}", path.display()))?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+    // 2. Probe the format
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+        hint.with_extension(ext);
+    }
+
+    let probed = symphonia::default::get_probe()
+        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .context("Failed to probe audio format")?;
+
+    let mut format = probed.format;
+
+    // 3. Find the default audio track
+    let track = format
+        .default_track()
+        .context("No default audio track found")?;
+
+    let track_id = track.id;
+    let codec_params = track.codec_params.clone();
+
+    // 4. Create decoder
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&codec_params, &DecoderOptions::default())
+        .context("Failed to create decoder")?;
+
+    // 5. Decode all packets
+    let mut sample_buf = None;
+    let mut all_samples = Vec::new();
+
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(symphonia::core::errors::Error::IoError(e))
+                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(e) => return Err(e).context("Failed to read packet"),
+        };
+
+        if packet.track_id() != track_id {
+            continue;
+        }
+
+        match decoder.decode(&packet) {
+            Ok(audio_buf) => {
+                if sample_buf.is_none() {
+                    let spec = *audio_buf.spec();
+                    let duration = audio_buf.capacity() as u64;
+                    sample_buf = Some(SampleBuffer::<f32>::new(duration, spec));
+                }
+
+                if let Some(ref mut buf) = sample_buf {
+                    buf.copy_interleaved_ref(audio_buf);
+                    all_samples.extend_from_slice(buf.samples());
+                }
+            }
+            Err(symphonia::core::errors::Error::DecodeError(_)) => continue,
+            Err(e) => return Err(e).context("Failed to decode packet"),
+        }
+    }
+
+    // 6. Convert to mono if stereo (average channels)
+    let channels = codec_params.channels.unwrap().count();
+    let mono_samples = if channels > 1 {
+        all_samples
+            .chunks(channels)
+            .map(|chunk| chunk.iter().sum::<f32>() / channels as f32)
+            .collect()
+    } else {
+        all_samples
+    };
+
+    // 7. Resample if needed (simplified - for production, use a proper resampler)
+    let source_rate = codec_params.sample_rate.unwrap_or(44100);
+    let resampled = if source_rate != target_sample_rate {
+        resample_simple(&mono_samples, source_rate, target_sample_rate)
+    } else {
+        mono_samples
+    };
+
+    let duration = resampled.len() as f64 / target_sample_rate as f64;
+
+    Ok(DecodedAudio {
+        samples: resampled,
+        sample_rate: target_sample_rate,
+        duration_secs: duration,
+    })
+}
+
+/// Simple linear resampling (for production, consider using `rubato` or similar).
+fn resample_simple(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+    if from_rate == to_rate {
+        return samples.to_vec();
+    }
+
+    let ratio = from_rate as f64 / to_rate as f64;
+    let output_len = (samples.len() as f64 / ratio) as usize;
+    let mut output = Vec::with_capacity(output_len);
+
+    for i in 0..output_len {
+        let pos = i as f64 * ratio;
+        let idx = pos as usize;
+        if idx + 1 < samples.len() {
+            let frac = pos - idx as f64;
+            let sample = samples[idx] * (1.0 - frac as f32) + samples[idx + 1] * frac as f32;
+            output.push(sample);
+        } else if idx < samples.len() {
+            output.push(samples[idx]);
+        }
+    }
+
+    output
+}
+```
+
+#### 2.11.3: Add error handling for decode failures
+
+Gracefully handle files that fail to decode:
+- Log the error with file path
+- Mark the item with `fingerprint = NULL`
+- Continue processing other files
+
+#### 2.11.4: Add unit tests with fixture audio files
+
+Create short test audio files (1-2 second clips) in multiple formats:
+- `tests/fixtures/test.flac`
+- `tests/fixtures/test.mp3`
+- `tests/fixtures/test.ogg`
+
+Test that:
+- Each format decodes successfully
+- Mono and stereo files both work
+- Sample rate conversion works
+- Decode errors are handled gracefully
+
+### Acceptance Criteria
+
+- [ ] `symphonia` dependency added and compiling
+- [ ] Audio decoder successfully decodes FLAC, MP3, OGG, WAV, M4A
+- [ ] Stereo audio converted to mono correctly (channel averaging)
+- [ ] Sample rate conversion to 11025 Hz works
+- [ ] Decode errors handled gracefully (log + skip file)
+- [ ] Unit tests pass with fixture audio files
+- [ ] No panics on malformed audio files
+
+---
+
+## Milestone 2.12: Chromaprint Fingerprinting in Scan
+
+### Goal
+
+Integrate `rusty-chromaprint` to generate acoustic fingerprints during the scan
+stage. Store fingerprints in the `Item.fingerprint` field for later use by
+identification.
+
+### Where
+
+- `crates/tessitura-etl/src/audio/fingerprint.rs` — chromaprint integration
+- `crates/tessitura-etl/src/scan.rs` — add fingerprinting to scan stage
+- `crates/tessitura-etl/Cargo.toml` — add rusty-chromaprint dependency
+
+### Dependencies
+
+Milestone 2.11 (audio decoder exists)
+
+### Steps
+
+#### 2.12.1: Add rusty-chromaprint dependency
+
+Add to workspace `Cargo.toml`:
+
+```toml
+rusty-chromaprint = "0.2"
+```
+
+Add to `crates/tessitura-etl/Cargo.toml`:
+
+```toml
+rusty-chromaprint = { workspace = true }
+```
+
+#### 2.12.2: Create fingerprint module
+
+Create `crates/tessitura-etl/src/audio/fingerprint.rs`:
+
+```rust
+use anyhow::{Context, Result};
+use rusty_chromaprint::{Configuration, Fingerprinter};
+use std::path::Path;
+
+use super::decoder::decode_audio;
+
+/// Generate a chromaprint fingerprint for an audio file.
+///
+/// Returns the fingerprint string and duration in seconds.
+pub fn generate_fingerprint(path: &Path) -> Result<(String, f64)> {
+    // 1. Decode audio to mono PCM at 11025 Hz (chromaprint's preferred rate)
+    let audio = decode_audio(path, 11025)
+        .with_context(|| format!("Failed to decode audio: {}", path.display()))?;
+
+    // 2. Create chromaprint fingerprinter
+    let config = Configuration::preset_test1(); // or preset_test2, preset_test3
+    let mut fpr = Fingerprinter::new(&config);
+
+    // 3. Feed samples to fingerprinter
+    fpr.start(audio.sample_rate)
+        .context("Failed to start fingerprinter")?;
+
+    fpr.feed(&audio.samples)
+        .context("Failed to feed samples")?;
+
+    fpr.finish().context("Failed to finish fingerprinter")?;
+
+    // 4. Get the fingerprint
+    let fingerprint = fpr
+        .fingerprint()
+        .context("Failed to get fingerprint")?
+        .to_string();
+
+    Ok((fingerprint, audio.duration_secs))
+}
+```
+
+#### 2.12.3: Integrate into ScanStage
+
+Modify `crates/tessitura-etl/src/scan.rs`:
+
+```rust
+// In the file scanning loop, after extracting tags:
+
+// Generate fingerprint
+let (fingerprint, duration) = match generate_fingerprint(&path) {
+    Ok(result) => (Some(result.0), Some(result.1)),
+    Err(e) => {
+        log::warn!("Failed to fingerprint {}: {}", path.display(), e);
+        (None, None)
+    }
+};
+
+// Create item with fingerprint
+let mut item = Item::new(path_str)
+    .with_format(format)
+    .with_duration(duration.unwrap_or(0.0));
+
+if let Some(fp) = fingerprint {
+    item.fingerprint = Some(fp);
+}
+
+// ... rest of item creation
+```
+
+#### 2.12.4: Update scan progress display
+
+Show fingerprinting progress:
+
+```
+Scanning: /path/to/music/album/track.flac
+  Tags extracted ✓
+  Fingerprinting... ✓
+```
+
+#### 2.12.5: Performance consideration
+
+Fingerprinting adds ~2-3 seconds per track. For your 7,415 tracks, this would
+add ~5-6 hours to a full rescan. Consider:
+
+- Adding a `--skip-fingerprint` flag for quick rescans
+- Only fingerprinting new/changed files (already handled by mtime check)
+- Showing estimated time remaining in progress display
+
+### Acceptance Criteria
+
+- [ ] `rusty-chromaprint` dependency added and compiling
+- [ ] Fingerprints generated during scan for all supported formats
+- [ ] Fingerprints stored in `Item.fingerprint` field
+- [ ] Decode/fingerprint errors handled gracefully (logged, item created without fingerprint)
+- [ ] Progress display shows fingerprinting status
+- [ ] Scan performance acceptable (~2-3 sec per track)
+- [ ] Tests verify fingerprints are deterministic (same file → same fingerprint)
+
+---
+
+## Milestone 2.13: AcoustID Lookup in Identify
+
+### Goal
+
+Implement actual AcoustID API integration in `AcoustIdClient`. Modify
+`IdentifyStage` to use fingerprint lookups as the primary identification
+method, falling back to metadata search when fingerprints are unavailable
+or yield no results.
+
+### Where
+
+- `crates/tessitura-etl/src/acoustid.rs` — expand AcoustIdClient
+- `crates/tessitura-etl/src/identify.rs` — update identification strategy
+
+### Dependencies
+
+Milestone 2.12 (fingerprints exist in database)
+
+### Steps
+
+#### 2.13.1: Implement AcoustID lookup method
+
+Expand `crates/tessitura-etl/src/acoustid.rs`:
+
+```rust
+use anyhow::{Context, Result};
+use reqwest::Client;
+use serde::Deserialize;
+
+#[derive(Debug, Clone)]
+pub struct AcoustIdClient {
+    api_key: String,
+    http: Client,
+    rate_limiter: crate::enrich::resilience::RateLimiter,
+}
+
+impl AcoustIdClient {
+    pub fn new(api_key: String) -> Self {
+        Self {
+            api_key,
+            http: Client::new(),
+            rate_limiter: crate::enrich::resilience::RateLimiter::new(3), // 3 req/sec
+        }
+    }
+
+    /// Lookup a fingerprint via AcoustID API.
+    ///
+    /// Returns MusicBrainz recording IDs with confidence scores.
+    pub async fn lookup(
+        &self,
+        fingerprint: &str,
+        duration: f64,
+    ) -> Result<Vec<AcoustIdMatch>> {
+        self.rate_limiter.acquire().await;
+
+        let response: AcoustIdResponse = self
+            .http
+            .post("https://api.acoustid.org/v2/lookup")
+            .form(&[
+                ("client", self.api_key.as_str()),
+                ("meta", "recordings"),
+                ("fingerprint", fingerprint),
+                ("duration", &duration.to_string()),
+            ])
+            .send()
+            .await
+            .context("AcoustID API request failed")?
+            .json()
+            .await
+            .context("Failed to parse AcoustID response")?;
+
+        if response.status != "ok" {
+            anyhow::bail!("AcoustID error: {}", response.status);
+        }
+
+        let mut matches = Vec::new();
+        for result in response.results.unwrap_or_default() {
+            for recording in result.recordings.unwrap_or_default() {
+                matches.push(AcoustIdMatch {
+                    recording_id: recording.id,
+                    score: result.score,
+                });
+            }
+        }
+
+        // Sort by score descending
+        matches.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+
+        Ok(matches)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AcoustIdMatch {
+    pub recording_id: String,
+    pub score: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct AcoustIdResponse {
+    status: String,
+    results: Option<Vec<AcoustIdResult>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AcoustIdResult {
+    score: f64,
+    recordings: Option<Vec<AcoustIdRecording>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AcoustIdRecording {
+    id: String,
+}
+```
+
+#### 2.13.2: Update IdentifyStage strategy
+
+Modify `crates/tessitura-etl/src/identify.rs`:
+
+```rust
+// In the identification loop:
+
+// Strategy:
+// 1. If item has fingerprint, try AcoustID lookup first
+// 2. If AcoustID succeeds (score > 0.8), use it
+// 3. Otherwise, fall back to metadata search
+// 4. If both fail, mark as unidentified
+
+if let (Some(fingerprint), Some(duration)) = (&item.fingerprint, item.duration_secs) {
+    log::debug!("Trying fingerprint lookup for {}", item.file_path);
+
+    if let Some(acoustid) = &self.acoustid {
+        match acoustid.lookup(fingerprint, duration).await {
+            Ok(matches) if !matches.is_empty() => {
+                let best = &matches[0];
+                if best.score >= 0.8 {
+                    log::debug!("AcoustID match: {} (score: {:.2})", best.recording_id, best.score);
+
+                    // Fetch full recording details from MusicBrainz
+                    let recording = self.musicbrainz
+                        .get_recording(&best.recording_id)
+                        .await?;
+
+                    // Create FRBR entities...
+                    // (existing code)
+
+                    continue; // Skip metadata fallback
+                }
+            }
+            Ok(_) => log::debug!("AcoustID returned no high-confidence matches"),
+            Err(e) => log::warn!("AcoustID lookup failed: {}", e),
+        }
+    }
+}
+
+// Fallback to metadata search
+log::debug!("Trying metadata search for {}", item.file_path);
+// (existing metadata search code)
+```
+
+#### 2.13.3: Add `fingerprint_score` to Item
+
+Store the AcoustID confidence score:
+
+```rust
+item.fingerprint_score = Some(best.score);
+db.update_item(&item)?;
+```
+
+#### 2.13.4: Update progress display
+
+```
+Identifying: /path/to/track.flac
+  Fingerprint lookup... ✓ (MusicBrainz ID: abc123, score: 0.95)
+
+Identifying: /path/to/other.mp3
+  Fingerprint lookup... ✗ (no match)
+  Metadata search... ✓ (found via artist + title)
+```
+
+### Acceptance Criteria
+
+- [ ] `AcoustIdClient.lookup()` successfully queries AcoustID API
+- [ ] MusicBrainz recording IDs extracted from AcoustID response
+- [ ] Fingerprint lookup attempted first for items with fingerprints
+- [ ] Metadata search fallback works when fingerprint fails
+- [ ] Confidence scores stored in `Item.fingerprint_score`
+- [ ] Rate limiting at 3 req/sec enforced
+- [ ] Progress display shows which method succeeded
+- [ ] Tests with mocked AcoustID responses
+
+---
+
+## Milestone 2.14: Backfill Command for Existing Items
+
+### Goal
+
+Add `tessitura fingerprint` command to generate fingerprints for already-scanned
+items. Critical for your existing 7,415 tracks that were scanned before
+fingerprinting was implemented.
+
+### Where
+
+- `crates/tessitura-cli/src/commands/fingerprint.rs` — new command module
+- `crates/tessitura-cli/src/main.rs` — add Fingerprint command
+
+### Dependencies
+
+Milestone 2.12 (fingerprint generation logic exists)
+
+### Steps
+
+#### 2.14.1: Create fingerprint command module
+
+Create `crates/tessitura-cli/src/commands/fingerprint.rs`:
+
+```rust
+use anyhow::Result;
+use std::path::PathBuf;
+use tessitura_core::schema::Database;
+use tessitura_etl::audio::fingerprint::generate_fingerprint;
+
+pub fn run_fingerprint(db_path: PathBuf, force: bool) -> Result<()> {
+    log::info!("Starting fingerprint backfill");
+
+    let db = Database::open(&db_path)?;
+
+    // Get items needing fingerprints
+    let items = if force {
+        db.list_all_items()?
+    } else {
+        db.list_items_without_fingerprints()?
+    };
+
+    if items.is_empty() {
+        println!("No items need fingerprinting.");
+        return Ok(());
+    }
+
+    println!(
+        "Fingerprinting {} items... (this may take a while)",
+        items.len()
+    );
+
+    let mut success_count = 0;
+    let mut error_count = 0;
+
+    for (idx, item) in items.iter().enumerate() {
+        print!("\r[{}/{}] {}", idx + 1, items.len(), item.file_path);
+        std::io::Write::flush(&mut std::io::stdout())?;
+
+        match generate_fingerprint(&PathBuf::from(&item.file_path)) {
+            Ok((fingerprint, duration)) => {
+                db.update_item_fingerprint(&item.id, Some(&fingerprint), Some(duration))?;
+                success_count += 1;
+            }
+            Err(e) => {
+                log::warn!("Failed to fingerprint {}: {}", item.file_path, e);
+                error_count += 1;
+            }
+        }
+    }
+
+    println!("\n\n✓ Fingerprinting complete");
+    println!("  Success: {}", success_count);
+    println!("  Errors:  {}", error_count);
+
+    Ok(())
+}
+```
+
+#### 2.14.2: Add database query method
+
+Add to `crates/tessitura-core/src/schema/db.rs`:
+
+```rust
+/// List all items without fingerprints.
+pub fn list_items_without_fingerprints(&self) -> Result<Vec<Item>> {
+    let mut stmt = self.conn.prepare(
+        "SELECT * FROM items WHERE fingerprint IS NULL ORDER BY file_path"
+    )?;
+    let items = stmt.query_map([], |row| Item::from_row(row))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(items)
+}
+
+/// Update an item's fingerprint.
+pub fn update_item_fingerprint(
+    &self,
+    item_id: &uuid::Uuid,
+    fingerprint: Option<&str>,
+    duration: Option<f64>,
+) -> Result<()> {
+    self.conn.execute(
+        "UPDATE items SET fingerprint = ?1, duration_secs = ?2, updated_at = ?3
+         WHERE id = ?4",
+        rusqlite::params![
+            fingerprint,
+            duration,
+            chrono::Utc::now().to_rfc3339(),
+            item_id.to_string(),
+        ],
+    )?;
+    Ok(())
+}
+```
+
+#### 2.14.3: Add CLI command
+
+Add to `crates/tessitura-cli/src/main.rs`:
+
+```rust
+Commands::Fingerprint {
+    /// Re-fingerprint all items (not just missing ones)
+    #[arg(long, default_value_t = false)]
+    force: bool,
+},
+
+// In the match:
+Commands::Fingerprint { force } => {
+    commands::fingerprint::run_fingerprint(config.database_path, force)?;
+}
+```
+
+#### 2.14.4: Add progress estimation
+
+Show estimated time remaining based on average time per track:
+
+```
+Fingerprinting 7415 items... (estimated: 5h 12m)
+[1234/7415] /path/to/track.flac  [=====>     ] 16.6%  (2h 45m remaining)
+```
+
+### Acceptance Criteria
+
+- [ ] `tessitura fingerprint` command exists
+- [ ] Fingerprints all items where `fingerprint IS NULL`
+- [ ] `--force` flag re-fingerprints all items
+- [ ] Progress bar shows current file and percentage
+- [ ] Error handling: logs failures but continues
+- [ ] Summary shows success/error counts
+- [ ] Database updates persisted correctly
+- [ ] Can be run incrementally (resume after interruption)
+
+---
+
+## Milestone 2.15: Mapping Rules Iteration
 
 ### Goal
 
@@ -1416,7 +2115,7 @@ Milestone 2.10
 
 ### Steps
 
-#### 2.11.1: Process classical test albums
+#### 2.15.1: Process classical test albums
 
 Run the Bartók String Quartets through the pipeline. Verify:
 
@@ -1429,19 +2128,19 @@ Run the Bartók String Quartets through the pipeline. Verify:
 
 Refine genre_rules and period_rules as needed.
 
-#### 2.11.2: Process jazz test albums
+#### 2.15.2: Process jazz test albums
 
 Run Kind of Blue. Verify jazz-specific handling, artist roles.
 
-#### 2.11.3: Process electronic test albums
+#### 2.15.3: Process electronic test albums
 
 Run Boards of Canada. Verify electronic subgenre handling with Last.fm tags.
 
-#### 2.11.4: Process prog test albums
+#### 2.15.4: Process prog test albums
 
 Run King Crimson. Verify progressive rock classification.
 
-#### 2.11.5: Document emerged patterns
+#### 2.15.5: Document emerged patterns
 
 Write `docs/mapping-patterns.md` documenting:
 
@@ -1469,6 +2168,8 @@ Write `docs/mapping-patterns.md` documenting:
 | `crossterm` | Cross-platform terminal backend | tessitura-cli | 0.28 |
 | `urlencoding` | URL-encode API query parameters | tessitura-etl | 2 |
 | `toml` | Parse mapping rules TOML files | tessitura-core | 0.8 |
+| `symphonia` | Audio decoding (FLAC, MP3, OGG, M4A, WAV) | tessitura-etl | 0.5 |
+| `rusty-chromaprint` | Audio fingerprinting (pure Rust) | tessitura-etl | 0.2 |
 
 Already in workspace: `backon`, `reqwest`, `serde_json`, `toml_edit`.
 
@@ -1546,6 +2247,11 @@ src/enrich/discogs.rs          — DiscogsClient, DiscogsEnricher
 src/enrich/lcgft.rs            — load_lcgft(), load_lcmpt()
 src/enrich/stage.rs            — EnrichStage (fan-out treadle Stage)
 src/harmonize.rs               — HarmonizeStage, conflict resolution
+src/audio/mod.rs               — Audio module
+src/audio/decoder.rs           — Symphonia audio decoding
+src/audio/fingerprint.rs       — Chromaprint fingerprinting
+src/acoustid.rs                — EXPAND: add lookup() method
+src/identify.rs                — UPDATE: fingerprint-first strategy
 ```
 
 ### tessitura-cli
@@ -1556,6 +2262,7 @@ src/tui/track_detail.rs        — Track detail view renderer
 src/commands/enrich.rs         — run_enrich()
 src/commands/harmonize.rs      — run_harmonize()
 src/commands/review.rs         — run_review()
+src/commands/fingerprint.rs    — run_fingerprint() (backfill command)
 ```
 
 ### Config / Data
@@ -1582,7 +2289,11 @@ make check  # build + lint + test
 5. **2.8**: `tessitura harmonize` → proposed tags stored, NeedsReview status
 6. **2.9**: `tessitura review` → TUI launches, navigation works, accept updates state
 7. **2.10**: Full pipeline end-to-end with test albums
-8. **2.11**: Process real albums, refine rules, verify output quality
+8. **2.11**: Audio decode tests with fixture files (FLAC, MP3, OGG)
+9. **2.12**: Fingerprint generation in scan → stored in database
+10. **2.13**: AcoustID lookup with mocked API → correct MusicBrainz IDs
+11. **2.14**: `tessitura fingerprint` backfills existing items
+12. **2.15**: Process real albums, refine rules, verify output quality
 
 ### Environment Variables for Testing
 ```bash
