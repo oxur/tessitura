@@ -51,6 +51,7 @@ pub struct App {
     pub albums: Vec<ReviewAlbum>,
     pub selected_album: usize,
     pub selected_track: usize,
+    pub album_list_offset: usize, // First visible album in the list
     pub should_quit: bool,
 }
 
@@ -63,6 +64,7 @@ impl App {
             albums,
             selected_album: 0,
             selected_track: 0,
+            album_list_offset: 0,
             should_quit: false,
         })
     }
@@ -75,16 +77,27 @@ impl App {
     }
 
     fn handle_album_list_key(&mut self, key: KeyCode) {
+        // Assume reasonable viewport height (will be refined in render)
+        const VIEWPORT_HEIGHT: usize = 20;
+
         match key {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Char('j') | KeyCode::Down => {
                 if self.selected_album + 1 < self.albums.len() {
                     self.selected_album += 1;
+                    // Scroll down if selection goes below visible area
+                    if self.selected_album >= self.album_list_offset + VIEWPORT_HEIGHT {
+                        self.album_list_offset = self.selected_album - VIEWPORT_HEIGHT + 1;
+                    }
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 if self.selected_album > 0 {
                     self.selected_album -= 1;
+                    // Scroll up if selection goes above visible area
+                    if self.selected_album < self.album_list_offset {
+                        self.album_list_offset = self.selected_album;
+                    }
                 }
             }
             KeyCode::Enter => {

@@ -46,10 +46,19 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
     ])
     .height(1);
 
+    // Calculate visible range based on viewport
+    // area.height - 2 for borders - 1 for header
+    let viewport_height = (area.height.saturating_sub(3)) as usize;
+    let visible_start = app.album_list_offset;
+    let visible_end = (visible_start + viewport_height).min(app.albums.len());
+
+    // Only render visible albums
     let rows: Vec<Row> = app
         .albums
         .iter()
         .enumerate()
+        .skip(visible_start)
+        .take(viewport_height)
         .map(|(i, album)| {
             let style = if i == app.selected_album {
                 Style::default().bg(Color::DarkGray).fg(Color::White)
@@ -71,6 +80,17 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    let title = if app.albums.len() > viewport_height {
+        format!(
+            "Albums [{}-{} of {}]",
+            visible_start + 1,
+            visible_end,
+            app.albums.len()
+        )
+    } else {
+        "Albums".to_string()
+    };
+
     let table = Table::new(
         rows,
         [
@@ -82,7 +102,7 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
         ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("Albums"));
+    .block(Block::default().borders(Borders::ALL).title(title));
 
     frame.render_widget(table, area);
 }
