@@ -9,7 +9,10 @@ pub async fn run_scan(music_dir: PathBuf, db_path: PathBuf) -> Result<()> {
     let workflow = build_pipeline(music_dir.clone(), db_path.clone(), None)?;
 
     // Create a state store for the pipeline
-    let state_path = db_path.parent().unwrap().join("pipeline.db");
+    let parent = db_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Database path has no parent directory"))?;
+    let state_path = parent.join("pipeline.db");
     let mut store = treadle::SqliteStateStore::open(&state_path).await?;
 
     // Create a work item for the scan job

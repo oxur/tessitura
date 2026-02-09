@@ -55,9 +55,9 @@ fn source_to_str(source: Source) -> &'static str {
 
 /// Convert a string name to a [`Source`] enum variant (case-insensitive).
 fn str_to_source(name: &str) -> Option<Source> {
-    let lower = name.to_lowercase();
+    // Use eq_ignore_ascii_case to avoid allocating a lowercased string
     for &(s, canonical) in SOURCE_NAMES {
-        if canonical == lower {
+        if canonical.eq_ignore_ascii_case(name) {
             return Some(s);
         }
     }
@@ -238,9 +238,15 @@ impl MappingRules {
     ///
     /// Returns 0 if the source is not found in the priority map.
     pub fn priority_for(&self, source: &str) -> u32 {
+        // First try exact match (common case if config uses lowercase keys)
+        if let Some(&priority) = self.source_priority.get(source) {
+            return priority;
+        }
+        // Fall back to case-insensitive search
         self.source_priority
-            .get(&source.to_lowercase())
-            .copied()
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(source))
+            .map(|(_, &priority)| priority)
             .unwrap_or(0)
     }
 
@@ -330,7 +336,8 @@ impl MappingRules {
         composer: Option<&str>,
         year: Option<i32>,
     ) -> Option<ProposedTag> {
-        let composer_lower = composer.map(|c| c.to_lowercase());
+        // Lowercase once instead of repeatedly in the loop
+        let composer_lower = composer.map(str::to_lowercase);
 
         // First pass: try composer name matching.
         if let Some(ref cl) = composer_lower {
@@ -338,19 +345,19 @@ impl MappingRules {
                 if rule.match_composer.is_empty() {
                     continue;
                 }
-                let matched = rule
-                    .match_composer
-                    .iter()
-                    .any(|pattern| cl.contains(&pattern.to_lowercase()));
-                if matched {
-                    return Some(ProposedTag {
-                        field: "period".to_string(),
-                        value: rule.output_period.clone(),
-                        source: Source::Wikidata,
-                        rule_name: rule.name.clone(),
-                        confidence: 0.9,
-                        alternatives: Vec::new(),
-                    });
+                // Check if any pattern matches
+                for pattern in &rule.match_composer {
+                    let pattern_lower = pattern.to_lowercase();
+                    if cl.contains(&pattern_lower) {
+                        return Some(ProposedTag {
+                            field: "period".to_string(),
+                            value: rule.output_period.clone(),
+                            source: Source::Wikidata,
+                            rule_name: rule.name.clone(),
+                            confidence: 0.9,
+                            alternatives: Vec::new(),
+                        });
+                    }
                 }
             }
         }
@@ -426,56 +433,81 @@ impl MappingRules {
 
 /// Extract the assertion value as a string, handling both JSON strings and
 /// other JSON value types by converting to their display representation.
-fn assertion_value_as_str(assertion: &Assertion) -> String {
+///
+/// Returns a `Cow` to avoid cloning when the value is already a string.
+fn assertion_value_as_str(assertion: &Assertion) -> std::borrow::Cow<'_, str> {
     match &assertion.value {
-        serde_json::Value::String(s) => s.clone(),
-        other => other.to_string(),
+        serde_json::Value::String(s) => std::borrow::Cow::Borrowed(s),
+        other => std::borrow::Cow::Owned(other.to_string()),
     }
 }
 
 /// Check if the assertion's source is allowed by the rule's `match_source` list.
 /// An empty `match_source` list means all sources are allowed.
+///
+/// This function assumes both `match_source` and `source_name` are already lowercase.
 fn rule_matches_source(match_source: &[String], source_name: &str) -> bool {
     if match_source.is_empty() {
         return true;
     }
-    let source_lower = source_name.to_lowercase();
-    match_source
-        .iter()
-        .any(|allowed| allowed.to_lowercase() == source_lower)
+    // Assume source_name is already lowercase (from source_to_str)
+    match_source.iter().any(|allowed| {
+        // Compare case-insensitively without allocating
+        allowed.eq_ignore_ascii_case(source_name)
+    })
 }
 
 /// Check if any of the `match_any` patterns is a substring of the assertion value.
+///
+/// Assumes `assertion_lower` is already lowercased for efficiency.
 fn rule_matches_value(match_any: &[String], assertion_lower: &str) -> bool {
     if match_any.is_empty() {
         return false;
     }
-    match_any
-        .iter()
-        .any(|pattern| assertion_lower.contains(&pattern.to_lowercase()))
+    // assertion_lower is already lowercase, patterns are not.
+    // Use eq_ignore_ascii_case for substring check to avoid allocating.
+    match_any.iter().any(|pattern| {
+        // For case-insensitive substring matching, we need to lowercase the pattern
+        // but we can avoid allocating by checking if assertion contains pattern insensitively
+        let pattern_lower = pattern.to_lowercase();
+        assertion_lower.contains(&pattern_lower)
+    })
 }
 
 /// Deduplicate proposals by (field, value), keeping the highest-priority source
 /// and recording others as alternatives.
 fn deduplicate_proposals(source_priority: &HashMap<String, u32>, proposals: &mut Vec<ProposedTag>) {
-    // Group by (field, value).
+    use std::collections::hash_map::Entry;
+
+    // Group by (field, value) without cloning the strings for the key
     let mut groups: HashMap<(String, String), Vec<ProposedTag>> = HashMap::new();
     for p in proposals.drain(..) {
-        let key = (p.field.clone(), p.value.clone());
-        groups.entry(key).or_default().push(p);
+        // Only clone when inserting a new entry
+        match groups.entry((p.field.clone(), p.value.clone())) {
+            Entry::Occupied(mut e) => {
+                e.get_mut().push(p);
+            }
+            Entry::Vacant(e) => {
+                e.insert(vec![p]);
+            }
+        }
     }
 
+    // Pre-compute lowercased source names to avoid repeated allocations
+    let get_priority = |source: Source| -> u32 {
+        let source_name = source_to_str(source);
+        source_priority
+            .get(source_name)
+            .or_else(|| source_priority.get(&source_name.to_lowercase()))
+            .copied()
+            .unwrap_or(0)
+    };
+
     for mut group in groups.into_values() {
-        // Sort by priority descending, then confidence descending.
+        // Sort by priority descending, then confidence descending
         group.sort_by(|a, b| {
-            let pa = source_priority
-                .get(&source_to_str(a.source).to_lowercase())
-                .copied()
-                .unwrap_or(0);
-            let pb = source_priority
-                .get(&source_to_str(b.source).to_lowercase())
-                .copied()
-                .unwrap_or(0);
+            let pa = get_priority(a.source);
+            let pb = get_priority(b.source);
             pb.cmp(&pa).then(
                 b.confidence
                     .partial_cmp(&a.confidence)

@@ -70,16 +70,18 @@ impl LastFmClient {
     ///
     /// The `api_key` must be a valid Last.fm API key obtained from
     /// <https://www.last.fm/api/account/create>.
-    pub fn new(api_key: String) -> Self {
-        Self {
+    ///
+    /// # Errors
+    /// Returns an error if the HTTP client cannot be built.
+    pub fn new(api_key: String) -> Result<Self, reqwest::Error> {
+        Ok(Self {
             http: Client::builder()
                 .user_agent("tessitura/0.1.0 (https://github.com/oxur/tessitura)")
                 .timeout(Duration::from_secs(30))
-                .build()
-                .expect("failed to build HTTP client"),
+                .build()?,
             api_key,
             rate_limiter: RateLimiter::new(5),
-        }
+        })
     }
 
     /// Get top tags for a track.
@@ -164,11 +166,14 @@ impl LastFmEnricher {
     /// Create a new Last.fm enricher.
     ///
     /// The `api_key` must be a valid Last.fm API key.
-    pub fn new(api_key: String) -> Self {
-        Self {
-            client: LastFmClient::new(api_key),
+    ///
+    /// # Errors
+    /// Returns an error if the HTTP client cannot be created.
+    pub fn new(api_key: String) -> Result<Self, reqwest::Error> {
+        Ok(Self {
+            client: LastFmClient::new(api_key)?,
             min_tag_count: MIN_TAG_COUNT,
-        }
+        })
     }
 
     /// Enrich an entity with folksonomy tags for a track.
@@ -258,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_lastfm_client_creation() {
-        let client = LastFmClient::new("test-key".to_string());
+        let client = LastFmClient::new("test-key".to_string()).unwrap();
         let debug = format!("{:?}", client);
         assert!(debug.contains("LastFmClient"));
         assert!(debug.contains("RateLimiter"));
@@ -266,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_lastfm_enricher_creation() {
-        let enricher = LastFmEnricher::new("test-key".to_string());
+        let enricher = LastFmEnricher::new("test-key".to_string()).unwrap();
         let debug = format!("{:?}", enricher);
         assert!(debug.contains("LastFmEnricher"));
         assert!(debug.contains("LastFmClient"));
@@ -305,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_tags_to_assertions_filters_low_count() {
-        let enricher = LastFmEnricher::new("key".to_string());
+        let enricher = LastFmEnricher::new("key".to_string()).unwrap();
         let tags = vec![
             LastFmTag {
                 name: "classical".to_string(),
@@ -334,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_tags_to_assertions_normalises_confidence() {
-        let enricher = LastFmEnricher::new("key".to_string());
+        let enricher = LastFmEnricher::new("key".to_string()).unwrap();
         let tags = vec![
             LastFmTag {
                 name: "rock".to_string(),
@@ -355,14 +360,14 @@ mod tests {
 
     #[test]
     fn test_tags_to_assertions_empty_input() {
-        let enricher = LastFmEnricher::new("key".to_string());
+        let enricher = LastFmEnricher::new("key".to_string()).unwrap();
         let assertions = enricher.tags_to_assertions(&[], "e-1", "track");
         assert!(assertions.is_empty());
     }
 
     #[test]
     fn test_tags_to_assertions_all_below_threshold() {
-        let enricher = LastFmEnricher::new("key".to_string());
+        let enricher = LastFmEnricher::new("key".to_string()).unwrap();
         let tags = vec![
             LastFmTag {
                 name: "obscure".to_string(),

@@ -8,7 +8,7 @@ use super::decoder::decode_audio;
 /// Encode a chromaprint fingerprint vector into a compressed base64 string.
 ///
 /// AcoustID expects fingerprints in this format for lookup.
-fn encode_fingerprint(fp: &[u32]) -> String {
+fn encode_fingerprint(fp: &[u32]) -> Result<String> {
     // Convert u32 array to bytes (little-endian)
     let mut bytes = Vec::with_capacity(fp.len() * 4);
     for &val in fp {
@@ -19,10 +19,12 @@ fn encode_fingerprint(fp: &[u32]) -> String {
     let mut compressed = Vec::new();
     let mut encoder =
         flate2::write::ZlibEncoder::new(&mut compressed, flate2::Compression::default());
-    encoder.write_all(&bytes).unwrap();
-    encoder.finish().unwrap();
+    encoder.write_all(&bytes)
+        .context("Failed to write fingerprint data to encoder")?;
+    encoder.finish()
+        .context("Failed to finish encoding fingerprint")?;
 
-    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, compressed)
+    Ok(base64::Engine::encode(&base64::engine::general_purpose::STANDARD, compressed))
 }
 
 /// Generate a chromaprint fingerprint for an audio file.
@@ -57,7 +59,7 @@ pub fn generate_fingerprint(path: &Path) -> Result<(String, f64)> {
     let fingerprint_vec = fpr.fingerprint();
 
     // Convert fingerprint vector to base64-encoded string
-    let fingerprint = encode_fingerprint(&fingerprint_vec);
+    let fingerprint = encode_fingerprint(&fingerprint_vec)?;
 
     Ok((fingerprint, audio.duration_secs))
 }

@@ -167,7 +167,10 @@ fn default_logging() -> twyg::Opts {
         .report_caller(false)
         .pad_level(true)
         .build()
-        .expect("Failed to build default logging configuration")
+        .unwrap_or_else(|e| {
+            eprintln!("Warning: Failed to build logging config: {e}, using fallback");
+            twyg::Opts::default()
+        })
 }
 
 /// Get the config file path.

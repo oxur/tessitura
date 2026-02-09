@@ -156,6 +156,34 @@ impl Database {
         Ok(())
     }
 
+    /// Update only the identification fields of an item (avoids expensive clone).
+    ///
+    /// This is more efficient than `update_item` when only updating the
+    /// identification-related fields after running the identify stage.
+    pub fn update_item_identification(
+        &self,
+        item_id: &ItemId,
+        expression_id: Option<ExpressionId>,
+        manifestation_id: Option<ManifestationId>,
+        fingerprint_score: Option<f64>,
+    ) -> Result<()> {
+        let now = chrono::Utc::now();
+        self.conn.execute(
+            "UPDATE items SET
+                expression_id = ?2, manifestation_id = ?3,
+                fingerprint_score = ?4, updated_at = ?5
+             WHERE id = ?1",
+            rusqlite::params![
+                item_id.to_string(),
+                expression_id.map(|id| id.to_string()),
+                manifestation_id.map(|id| id.to_string()),
+                fingerprint_score,
+                now.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
     /// List all unidentified items (no `expression_id`).
     pub fn list_unidentified_items(&self) -> Result<Vec<Item>> {
         let mut stmt = self.conn.prepare(
@@ -261,7 +289,12 @@ impl Database {
         use std::path::PathBuf;
         use uuid::Uuid;
 
-        let id = ItemId::from_uuid(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap());
+        let id = ItemId::from_uuid(
+            Uuid::parse_str(&row.get::<_, String>(0)?)
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    0, rusqlite::types::Type::Text, Box::new(e)
+                ))?
+        );
         let expression_id: Option<String> = row.get(1)?;
         let manifestation_id: Option<String> = row.get(2)?;
         let file_path: String = row.get(3)?;
@@ -271,12 +304,22 @@ impl Database {
         let created_at_str: String = row.get(19)?;
         let updated_at_str: String = row.get(20)?;
 
+        // Helper to parse optional UUID with proper error handling
+        let parse_optional_uuid = |s: Option<String>, col: usize| -> rusqlite::Result<Option<Uuid>> {
+            s.map(|val|
+                Uuid::parse_str(&val)
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                        col, rusqlite::types::Type::Text, Box::new(e)
+                    ))
+            ).transpose()
+        };
+
         Ok(Item {
             id,
-            expression_id: expression_id
-                .map(|s| ExpressionId::from_uuid(Uuid::parse_str(&s).unwrap())),
-            manifestation_id: manifestation_id
-                .map(|s| ManifestationId::from_uuid(Uuid::parse_str(&s).unwrap())),
+            expression_id: parse_optional_uuid(expression_id, 1)?
+                .map(ExpressionId::from_uuid),
+            manifestation_id: parse_optional_uuid(manifestation_id, 2)?
+                .map(ManifestationId::from_uuid),
             file_path: PathBuf::from(file_path),
             format: match format_str.as_str() {
                 "Flac" => AudioFormat::Flac,
@@ -288,7 +331,9 @@ impl Database {
             },
             file_size: file_size as u64,
             file_mtime: DateTime::parse_from_rfc3339(&file_mtime_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    6, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
             file_hash: row.get(7)?,
             fingerprint: row.get(8)?,
@@ -303,10 +348,14 @@ impl Database {
             tag_genre: row.get(17)?,
             duration_secs: row.get(18)?,
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    19, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
             updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    20, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
         })
     }
@@ -379,7 +428,9 @@ impl Database {
             source,
             confidence,
             fetched_at: DateTime::parse_from_rfc3339(&fetched_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    5, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
         })
     }
@@ -458,7 +509,12 @@ impl Database {
         let updated_at_str: String = row.get(8)?;
 
         Ok(Work {
-            id: WorkId::from_uuid(Uuid::parse_str(&id_str).unwrap()),
+            id: WorkId::from_uuid(
+                Uuid::parse_str(&id_str)
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                        0, rusqlite::types::Type::Text, Box::new(e)
+                    ))?
+            ),
             title: row.get(1)?,
             composer: row.get(2)?,
             musicbrainz_id: row.get(3)?,
@@ -466,10 +522,14 @@ impl Database {
             key: row.get(5)?,
             composed_year: row.get::<_, Option<i64>>(6)?.map(|v| v as i32),
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    7, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
             updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    8, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
         })
     }
@@ -567,7 +627,11 @@ impl Database {
             let performer_ids = perf_stmt
                 .query_map(rusqlite::params![expr.id.to_string()], |row| {
                     let id_str: String = row.get(0)?;
-                    Ok(ArtistId::from_uuid(uuid::Uuid::parse_str(&id_str).unwrap()))
+                    uuid::Uuid::parse_str(&id_str)
+                        .map(ArtistId::from_uuid)
+                        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                            0, rusqlite::types::Type::Text, Box::new(e)
+                        ))
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             expr.performer_ids = performer_ids;
@@ -599,7 +663,11 @@ impl Database {
                 let performer_ids = perf_stmt
                     .query_map(rusqlite::params![expr.id.to_string()], |row| {
                         let id_str: String = row.get(0)?;
-                        Ok(ArtistId::from_uuid(uuid::Uuid::parse_str(&id_str).unwrap()))
+                        uuid::Uuid::parse_str(&id_str)
+                            .map(ArtistId::from_uuid)
+                            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                                0, rusqlite::types::Type::Text, Box::new(e)
+                            ))
                     })?
                     .collect::<rusqlite::Result<Vec<_>>>()?;
                 expr.performer_ids = performer_ids;
@@ -620,21 +688,45 @@ impl Database {
         let created_at_str: String = row.get(7)?;
         let updated_at_str: String = row.get(8)?;
 
+        // Helper to parse optional UUID with proper error handling
+        let parse_optional_artist_uuid = |s: Option<String>, col: usize| -> rusqlite::Result<Option<ArtistId>> {
+            s.map(|val|
+                Uuid::parse_str(&val)
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                        col, rusqlite::types::Type::Text, Box::new(e)
+                    ))
+                    .map(ArtistId::from_uuid)
+            ).transpose()
+        };
+
         Ok(Expression {
-            id: ExpressionId::from_uuid(Uuid::parse_str(&id_str).unwrap()),
-            work_id: WorkId::from_uuid(Uuid::parse_str(&work_id_str).unwrap()),
+            id: ExpressionId::from_uuid(
+                Uuid::parse_str(&id_str)
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                        0, rusqlite::types::Type::Text, Box::new(e)
+                    ))?
+            ),
+            work_id: WorkId::from_uuid(
+                Uuid::parse_str(&work_id_str)
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                        1, rusqlite::types::Type::Text, Box::new(e)
+                    ))?
+            ),
             title: row.get(2)?,
             musicbrainz_id: row.get(3)?,
             performer_ids: Vec::new(), // populated after query
-            conductor_id: conductor_id_str
-                .map(|s| ArtistId::from_uuid(Uuid::parse_str(&s).unwrap())),
+            conductor_id: parse_optional_artist_uuid(conductor_id_str, 4)?,
             recorded_year: row.get::<_, Option<i64>>(5)?.map(|v| v as i32),
             duration_secs: row.get(6)?,
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    7, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
             updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    8, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
         })
     }
@@ -720,7 +812,12 @@ impl Database {
         let updated_at_str: String = row.get(10)?;
 
         Ok(Manifestation {
-            id: ManifestationId::from_uuid(Uuid::parse_str(&id_str).unwrap()),
+            id: ManifestationId::from_uuid(
+                Uuid::parse_str(&id_str)
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                        0, rusqlite::types::Type::Text, Box::new(e)
+                    ))?
+            ),
             title: row.get(1)?,
             musicbrainz_id: row.get(2)?,
             label: row.get(3)?,
@@ -730,10 +827,14 @@ impl Database {
             disc_count: row.get::<_, Option<i64>>(7)?.map(|v| v as u32),
             format: row.get(8)?,
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    9, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
             updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    10, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
         })
     }
@@ -845,16 +946,25 @@ impl Database {
         let updated_at_str: String = row.get(5)?;
 
         Ok(Artist {
-            id: ArtistId::from_uuid(Uuid::parse_str(&id_str).unwrap()),
+            id: ArtistId::from_uuid(
+                Uuid::parse_str(&id_str)
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                        0, rusqlite::types::Type::Text, Box::new(e)
+                    ))?
+            ),
             name: row.get(1)?,
             sort_name: row.get(2)?,
             musicbrainz_id: row.get(3)?,
             roles: Vec::new(), // populated after query
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    4, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
             updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
-                .unwrap()
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
+                    5, rusqlite::types::Type::Text, Box::new(e)
+                ))?
                 .into(),
         })
     }

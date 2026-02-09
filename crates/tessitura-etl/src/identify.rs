@@ -129,37 +129,64 @@ impl IdentifyStage {
                     );
 
                     // Try multiple search strategies
-                    let search_strategies = [
-                        (title.clone(), item.tag_album.clone()), // Exact title + album
-                        (Self::strip_title_suffix(title), item.tag_album.clone()), // Cleaned title + album
-                        (Self::strip_title_suffix(title), None), // Cleaned title, no album
-                    ];
+                    // Strategy 1: Exact title + album
+                    self.mb_rate_limiter.acquire().await;
+                    let mut found = false;
 
-                    for (search_title, search_album) in &search_strategies {
+                    if let Ok(recordings) = self
+                        .musicbrainz
+                        .search_recording(artist, title, item.tag_album.as_deref())
+                        .await
+                    {
+                        if let Some(recording) = recordings.first() {
+                            recording_id = Some(recording.id.clone());
+                            log::info!(
+                                "Metadata match found (exact): {} - {}",
+                                recording.title,
+                                recording.id
+                            );
+                            found = true;
+                        }
+                    }
+
+                    // Strategy 2: Cleaned title + album (if not found)
+                    if !found {
+                        let cleaned_title = Self::strip_title_suffix(title);
                         self.mb_rate_limiter.acquire().await;
 
-                        match self
+                        if let Ok(recordings) = self
                             .musicbrainz
-                            .search_recording(artist, search_title, search_album.as_deref())
+                            .search_recording(artist, &cleaned_title, item.tag_album.as_deref())
                             .await
                         {
-                            Ok(recordings) => {
-                                if let Some(recording) = recordings.first() {
-                                    recording_id = Some(recording.id.clone());
-                                    log::info!(
-                                        "Metadata match found: {} - {}",
-                                        recording.title,
-                                        recording.id
-                                    );
-                                    break;
-                                }
+                            if let Some(recording) = recordings.first() {
+                                recording_id = Some(recording.id.clone());
+                                log::info!(
+                                    "Metadata match found (cleaned+album): {} - {}",
+                                    recording.title,
+                                    recording.id
+                                );
+                                found = true;
                             }
-                            Err(e) => {
-                                log::debug!(
-                                    "MusicBrainz search failed for {} (strategy: {:?}): {}",
-                                    item.file_path.display(),
-                                    (search_title, search_album),
-                                    e
+                        }
+                    }
+
+                    // Strategy 3: Cleaned title, no album (if still not found)
+                    if !found {
+                        let cleaned_title = Self::strip_title_suffix(title);
+                        self.mb_rate_limiter.acquire().await;
+
+                        if let Ok(recordings) = self
+                            .musicbrainz
+                            .search_recording(artist, &cleaned_title, None)
+                            .await
+                        {
+                            if let Some(recording) = recordings.first() {
+                                recording_id = Some(recording.id.clone());
+                                log::info!(
+                                    "Metadata match found (cleaned only): {} - {}",
+                                    recording.title,
+                                    recording.id
                                 );
                             }
                         }
@@ -343,11 +370,12 @@ impl IdentifyStage {
         };
 
         // Step 5: Link item to expression and manifestation, store fingerprint score
-        let mut updated_item = item.clone();
-        updated_item.expression_id = Some(expression_id);
-        updated_item.manifestation_id = manifestation_id;
-        updated_item.fingerprint_score = fingerprint_score;
-        db.update_item(&updated_item)?;
+        db.update_item_identification(
+            &item.id,
+            Some(expression_id),
+            manifestation_id,
+            fingerprint_score,
+        )?;
 
         Ok(())
     }

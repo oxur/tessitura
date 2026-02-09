@@ -45,13 +45,36 @@ impl EnrichStage {
     /// Sources are enabled based on available API keys and configuration.
     /// `MusicBrainz` and Wikidata are always available (no API key required).
     pub fn new(config: &Config, db_path: PathBuf) -> Self {
-        let musicbrainz = MusicBrainzEnricher::new().ok();
-        let wikidata = WikidataEnricher::new().ok();
-        let lastfm = config
-            .lastfm_api_key
-            .as_ref()
-            .map(|key| LastFmEnricher::new(key.clone()));
-        let discogs = Some(DiscogsEnricher::new(config.discogs_token.clone()));
+        let musicbrainz = match MusicBrainzEnricher::new() {
+            Ok(e) => Some(e),
+            Err(err) => {
+                log::warn!("Failed to initialize MusicBrainz enricher: {err}");
+                None
+            }
+        };
+        let wikidata = match WikidataEnricher::new() {
+            Ok(e) => Some(e),
+            Err(err) => {
+                log::warn!("Failed to initialize Wikidata enricher: {err}");
+                None
+            }
+        };
+        let lastfm = config.lastfm_api_key.as_ref().and_then(|key| {
+            match LastFmEnricher::new(key.clone()) {
+                Ok(e) => Some(e),
+                Err(err) => {
+                    log::warn!("Failed to initialize Last.fm enricher: {err}");
+                    None
+                }
+            }
+        });
+        let discogs = match DiscogsEnricher::new(config.discogs_token.clone()) {
+            Ok(e) => Some(e),
+            Err(err) => {
+                log::warn!("Failed to initialize Discogs enricher: {err}");
+                None
+            }
+        };
 
         Self {
             musicbrainz,
@@ -103,11 +126,16 @@ impl EnrichStage {
                 })?;
 
             item.expression_id.and_then(|expr_id| {
-                let expressions = db.list_expressions().ok()?;
-                expressions
-                    .into_iter()
-                    .find(|e| e.id == expr_id)
-                    .and_then(|expr| expr.musicbrainz_id)
+                match db.list_expressions() {
+                    Ok(expressions) => expressions
+                        .into_iter()
+                        .find(|e| e.id == expr_id)
+                        .and_then(|expr| expr.musicbrainz_id),
+                    Err(e) => {
+                        log::warn!("Failed to list expressions for MusicBrainz lookup: {e}");
+                        None
+                    }
+                }
             })
         };
         // `db` is now dropped -- safe for Send futures.
@@ -155,12 +183,22 @@ impl EnrichStage {
                 })?;
 
             item.expression_id.and_then(|expr_id| {
-                let expressions = db.list_expressions().ok()?;
-                let expr = expressions.into_iter().find(|e| e.id == expr_id)?;
-                db.get_work_by_musicbrainz_id(&expr.work_id.to_string())
-                    .ok()
-                    .flatten()
-                    .and_then(|w| w.musicbrainz_id)
+                match db.list_expressions() {
+                    Ok(expressions) => {
+                        let expr = expressions.into_iter().find(|e| e.id == expr_id)?;
+                        match db.get_work_by_musicbrainz_id(&expr.work_id.to_string()) {
+                            Ok(work_opt) => work_opt.and_then(|w| w.musicbrainz_id),
+                            Err(e) => {
+                                log::warn!("Failed to get work for Wikidata lookup: {e}");
+                                None
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to list expressions for Wikidata lookup: {e}");
+                        None
+                    }
+                }
             })
         };
         // `db` is now dropped -- safe for Send futures.
@@ -256,10 +294,13 @@ impl EnrichStage {
                 })?;
 
             item.manifestation_id.and_then(|man_id| {
-                db.get_manifestation_by_musicbrainz_id(&man_id.to_string())
-                    .ok()
-                    .flatten()
-                    .and_then(|man| man.catalog_number)
+                match db.get_manifestation_by_musicbrainz_id(&man_id.to_string()) {
+                    Ok(man_opt) => man_opt.and_then(|man| man.catalog_number),
+                    Err(e) => {
+                        log::warn!("Failed to get manifestation for Discogs lookup: {e}");
+                        None
+                    }
+                }
             })
         };
         // `db` is now dropped -- safe for Send futures.

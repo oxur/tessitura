@@ -138,17 +138,19 @@ impl DiscogsClient {
     /// If a personal access token is provided, the client uses the
     /// authenticated rate limit of 4 req/sec (240/min). Without a token,
     /// the unauthenticated limit of 1 req/sec (60/min) applies.
-    pub fn new(token: Option<String>) -> Self {
+    ///
+    /// # Errors
+    /// Returns an error if the HTTP client cannot be built.
+    pub fn new(token: Option<String>) -> Result<Self, reqwest::Error> {
         let rps = if token.is_some() { 4 } else { 1 };
-        Self {
+        Ok(Self {
             http: Client::builder()
                 .user_agent("tessitura/0.1.0")
                 .timeout(Duration::from_secs(30))
-                .build()
-                .expect("failed to build HTTP client"),
+                .build()?,
             token,
             rate_limiter: RateLimiter::new(rps),
-        }
+        })
     }
 
     /// Build the `Authorization` header value, if a token is configured.
@@ -239,10 +241,13 @@ impl DiscogsEnricher {
     /// The optional `token` is a Discogs personal access token used for
     /// authentication. Authenticated requests benefit from a higher rate
     /// limit (240 req/min vs 60 req/min).
-    pub fn new(token: Option<String>) -> Self {
-        Self {
-            client: DiscogsClient::new(token),
-        }
+    ///
+    /// # Errors
+    /// Returns an error if the HTTP client cannot be created.
+    pub fn new(token: Option<String>) -> Result<Self, reqwest::Error> {
+        Ok(Self {
+            client: DiscogsClient::new(token)?,
+        })
     }
 
     /// Enrich an entity by searching for a release by catalog number.
@@ -395,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_discogs_client_creation_unauthenticated() {
-        let client = DiscogsClient::new(None);
+        let client = DiscogsClient::new(None).unwrap();
         let debug = format!("{client:?}");
         assert!(debug.contains("DiscogsClient"));
         assert!(debug.contains("RateLimiter"));
@@ -403,27 +408,27 @@ mod tests {
 
     #[test]
     fn test_discogs_client_creation_authenticated() {
-        let client = DiscogsClient::new(Some("test-token".to_string()));
+        let client = DiscogsClient::new(Some("test-token".to_string())).unwrap();
         assert!(client.token.is_some());
         assert_eq!(client.token.as_deref(), Some("test-token"));
     }
 
     #[test]
     fn test_discogs_client_auth_header_with_token() {
-        let client = DiscogsClient::new(Some("my-secret-token".to_string()));
+        let client = DiscogsClient::new(Some("my-secret-token".to_string())).unwrap();
         let header = client.auth_header();
         assert_eq!(header, Some("Discogs token=my-secret-token".to_string()));
     }
 
     #[test]
     fn test_discogs_client_auth_header_without_token() {
-        let client = DiscogsClient::new(None);
+        let client = DiscogsClient::new(None).unwrap();
         assert!(client.auth_header().is_none());
     }
 
     #[test]
     fn test_discogs_enricher_creation() {
-        let enricher = DiscogsEnricher::new(None);
+        let enricher = DiscogsEnricher::new(None).unwrap();
         let debug = format!("{enricher:?}");
         assert!(debug.contains("DiscogsEnricher"));
         assert!(debug.contains("DiscogsClient"));
@@ -431,7 +436,7 @@ mod tests {
 
     #[test]
     fn test_discogs_enricher_creation_with_token() {
-        let enricher = DiscogsEnricher::new(Some("tok".to_string()));
+        let enricher = DiscogsEnricher::new(Some("tok".to_string())).unwrap();
         let debug = format!("{enricher:?}");
         assert!(debug.contains("DiscogsEnricher"));
     }

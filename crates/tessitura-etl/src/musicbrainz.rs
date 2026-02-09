@@ -237,7 +237,9 @@ impl MusicBrainzClient {
 
         let mut query = format!("recording:\"{title}\" AND artist:\"{artist}\"");
         if let Some(album) = album {
-            let _ = write!(query, " AND release:\"{album}\"");
+            // write! to String never fails, but clippy requires handling the Result
+            write!(query, " AND release:\"{album}\"")
+                .expect("Writing to String cannot fail");
         }
 
         let url = "https://musicbrainz.org/ws/2/recording/";
