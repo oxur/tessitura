@@ -7,6 +7,7 @@
 #![warn(missing_debug_implementations)]
 
 pub mod acoustid;
+pub mod audio;
 pub mod config;
 pub mod enrich;
 pub mod error;
